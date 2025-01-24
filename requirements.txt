@@ -1,0 +1,21 @@
+ollama==0.4.4  # type: ignore
+chromadb==0.5.5 # type: ignore
+fastapi==0.112.2 # type: ignore
+langchain==0.3.10# type: ignore
+langchain-text-splitters==0.3.2# type: ignore
+numpy==1.26.4# type: ignore
+pandas==2.2.3# type: ignore
+pdf2image==1.17.0# type: ignore
+Pillow==10.4.0# type: ignore
+psutil==6.1.1# type: ignore
+pydantic==2.10.4# type: ignore
+PyPDF2==3.0.1# type: ignore
+pytesseract==0.3.13# type: ignore
+python-dotenv==1.0.1# type: ignore
+bcrypt==4.2.0# type: ignore
+python-docx==1.1.2# type: ignore
+python-multipart==0.0.20# type: ignore
+psycopg2==2.9.10# type: ignore
+PyMuPDF==1.25.2 # type: ignore
+pytz==2024.2# type: ignore
+SQLAlchemy==2.0.32# type: ignore
