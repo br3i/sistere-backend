@@ -4,12 +4,15 @@ import unicodedata
 import time
 
 
-def extract_text_from_pages(document_path):
+import io
+
+
+def extract_text_from_pages(reader):
     """
     Extrae el texto de todas las páginas de un archivo PDF desde el inicio hasta encontrar el patrón "RESUELVE:".
 
     Args:
-        document_path (str): Ruta al archivo PDF.
+        reader (PdfReader): Objeto PdfReader.
 
     Returns:
         tuple: Texto combinado de todas las páginas desde el inicio hasta encontrar el patrón "RESUELVE:" y el número de la página en la que se encontró.
@@ -28,31 +31,25 @@ def extract_text_from_pages(document_path):
     ]
     search_patterns = [r"unanimidad,.*?RESUELVE\s*:\s*(Art[íi]culo)"]
 
-    with open(document_path, "rb") as file:
-        reader = PyPDF2.PdfReader(file)
+    try:
         total_pages = len(reader.pages)
 
         # Iterar desde la página inicial hasta la última página
-        for page_num in range(len(reader.pages)):
+        for page_num in range(total_pages):
             page = reader.pages[page_num]
             page_text = page.extract_text().strip()
-            # print("\n[[info_docs_service]] Texto bruto inicial:", repr(page_text))
 
             # Primer procesamiento: Replace patterns
             for pattern, replacement in replace_patterns:
                 page_text = re.sub(pattern, replacement, page_text)
-            # print("\n[[info_docs_service]] Después de replace_patterns:", repr(page_text))
 
             # Segundo procesamiento: Clean patterns
             for pattern, replacement in clean_patterns:
                 page_text = re.sub(pattern, replacement, page_text)
-            # print("\n[[info_docs_service]] Después de clean_patterns:", repr(page_text))
             page_text = page_text.strip()
             total_text += (
                 page_text  # Concatenar texto de cada página con un espacio en blanco
             )
-            # print("\n\n\n[[info_docs_service]] Total_text acumulado:", repr(total_text))
-            # time.sleep(3)
 
             # Actualizar la penúltima página (solo si es válida)
             if page_num == len(reader.pages) - 3:
@@ -69,28 +66,31 @@ def extract_text_from_pages(document_path):
                     )
                     break  # Detener la búsqueda después de encontrar el patrón
 
-    total_text = re.sub(r"\…{2,}", "FIRMA", total_text, flags=re.IGNORECASE)
-    total_text = re.sub(r"\s{2,}", " ", total_text, flags=re.IGNORECASE)
-    if final_page is not None:
-        return total_text, final_page
-    # Si no se encontró el patrón, devolver la penúltima página
-    elif third_last_page is not None:
-        return total_text, third_last_page
-    else:
-        if total_pages <= 2:
-            fallback_page = 0
+        total_text = re.sub(r"\…{2,}", "FIRMA", total_text, flags=re.IGNORECASE)
+        total_text = re.sub(r"\s{2,}", " ", total_text, flags=re.IGNORECASE)
+        if final_page is not None:
+            return total_text, final_page
+        # Si no se encontró el patrón, devolver la penúltima página
+        elif third_last_page is not None:
+            return total_text, third_last_page
         else:
-            fallback_page = total_pages - 3
-        return total_text, fallback_page
+            if total_pages <= 2:
+                fallback_page = 0
+            else:
+                fallback_page = total_pages - 3
+            return total_text, fallback_page
+    except Exception as e:
+        print(f"Error extrayendo texto de varias páginas: {e}")
+        return "Error extrayendo texto de varias páginas.", 0
 
 
-def extract_text_resolve(document_path, start_page):
+def extract_text_resolve(reader, start_page):
     """
     Extrae el texto desde una página específica hasta el final del documento, comenzando en la página especificada.
     Procesa el texto para buscar y remover un patrón específico, almacenando las partes separadamente.
 
     Args:
-        document_path (str): Ruta al archivo PDF.
+        reader (PdfReader): Objeto PdfReader.
         start_page (int): Número de página desde la cual comenzar a extraer (1-indexed).
 
     Returns:
@@ -125,15 +125,7 @@ def extract_text_resolve(document_path, start_page):
     # Subpatrón para extraer desde "Copia:" dentro de la sección encontrada
     copia_pattern = r"(Copia:.*)"
 
-    with open(document_path, "rb") as file:
-        reader = PyPDF2.PdfReader(file)
-
-        # Asegurarse de que la página inicial esté dentro de un rango válido
-        if start_page < 0 or start_page > len(reader.pages):
-            raise ValueError(
-                "El número de página inicial está fuera del rango del documento."
-            )
-
+    try:
         # Iterar desde la página especificada hasta la última página
         for page_num in range(start_page, len(reader.pages)):
             page = reader.pages[page_num]
@@ -146,35 +138,41 @@ def extract_text_resolve(document_path, start_page):
             # Concatenar el texto procesado de cada página
             full_text += page_text
 
-    # Buscar la sección completa desde "SECRETARIO GENERAL"
-    section_match = re.search(section_pattern, full_text, flags=re.IGNORECASE)
-    if section_match:
-        section_text = section_match.group(1)  # Extraer desde "SECRETARIO GENERAL"
+        # Buscar la sección completa desde "SECRETARIO GENERAL"
+        section_match = re.search(section_pattern, full_text, flags=re.IGNORECASE)
+        if section_match:
+            section_text = section_match.group(1)  # Extraer desde "SECRETARIO GENERAL"
 
-        # Dentro de la sección, buscar específicamente "Copia:"
-        copia_match = re.search(copia_pattern, section_text, flags=re.IGNORECASE)
-        if copia_match:
-            copia = copia_match.group(1)  # Extraer desde "Copia:"
-            # Mantener el texto antes de "Copia:" en el full_text
-            full_text = full_text.replace(copia, "").strip()
+            # Dentro de la sección, buscar específicamente "Copia:"
+            copia_match = re.search(copia_pattern, section_text, flags=re.IGNORECASE)
+            if copia_match:
+                copia = copia_match.group(1)  # Extraer desde "Copia:"
+                # Mantener el texto antes de "Copia:" en el full_text
+                full_text = full_text.replace(copia, "").strip()
 
-    return full_text, copia
+        return full_text, copia
+
+    except Exception as e:
+        print(f"Error extrayendo resuelve: {e}")
+        return "Error extrayendo resuelve.", "Error extrayendo copia"
 
 
-def extract_text_from_first_page(document_path):
+def extract_text_from_first_page(reader):
     """
-    Extrae el texto de la primera página de un archivo PDF.
+    Extrae el texto de la primera página de un archivo PDF usando un PdfReader.
 
     Args:
-        document_path (str): Ruta al archivo PDF.
+        reader (PdfReader): Objeto PdfReader.
 
     Returns:
         str: Texto extraído de la primera página.
     """
-    with open(document_path, "rb") as file:
-        reader = PyPDF2.PdfReader(file)
+    try:
         first_page = reader.pages[0]
         return first_page.extract_text()
+    except Exception as e:
+        print(f"Error extrayendo texto de la primera página: {e}")
+        return "Error extrayendo texto de la primera página."
 
 
 def separate_text_into_paragraphs(text):
@@ -204,7 +202,7 @@ def process_paragraphs(paragraphs):
     # Lista para almacenar las coincidencias
     article_entity = []
 
-    print("Procesando párrafos...")
+    # print("Procesando párrafos...")
     for paragraph in paragraphs:
         for pattern in search_patterns:
             matches = re.findall(pattern, paragraph, flags=re.IGNORECASE)
@@ -214,7 +212,7 @@ def process_paragraphs(paragraphs):
                     article_entity.append(match[0])
 
     print(
-        f"\n[info_docs_service] Total de coincidencias encontradas: {len(article_entity)}"
+        f"\n[info_docs_service] Total de consideraciones encontradas: {len(article_entity)}"
     )
     return article_entity
 
@@ -353,52 +351,50 @@ def get_resolve_to_embed(text):
     return text
 
 
-def get_info_document(document_path):
-    if document_path:
-        print(f"\n[info_docs_service] Procesando archivo: {document_path}")
+def get_info_document(document):
+    if document:
+        # print(f"\n[info_docs_service] Procesando archivo: {document}")
 
-        # Extraer texto de la primera página
-        text_name_resolution = extract_text_from_first_page(document_path)
-        # print("\n\n\Text_name_resolution:\n\n", text_name_resolution)
+        with document.file as file:
+            reader = PyPDF2.PdfReader(file)
 
-        # Extraer texto de una página
-        total_text, final_page = extract_text_from_pages(document_path)
-        # time.sleep(5)
-        # print("\n\n[info_docs_service ]Total_text:\n\n", total_text[-10000:]) #total_text[-70000:]
-        # print("\n\n\t[info_docs_service ] final_page:", final_page)
-        # time.sleep(5)
-        resolution, number_resolution = get_resolution(text_name_resolution)
+            # Extraer texto de la primera página
+            text_name_resolution = extract_text_from_first_page(reader)
+            # print("\n\n\Text_name_resolution:\n\n", text_name_resolution)
 
-        # Imprimir la resolución encontrada
-        # print("\n[info_docs_service] Resolución encontrada:", resolution)
+            resolution, number_resolution = get_resolution(text_name_resolution)
 
-        text_resolve, copia = extract_text_resolve(document_path, final_page)
+            # Extraer texto de varias páginas
+            total_text, final_page = extract_text_from_pages(reader)
+            # Extraer texto desde "RESUELVE:" y "Copia:"
+            text_resolve, copia = extract_text_resolve(reader, final_page)
 
-        # print("\n\n\t [info_docs_service] Text_resolve:", text_resolve)
-        resolve = get_resolve(text_resolve)
+            resolve = get_resolve(text_resolve)
 
-        if resolution:
-            resolve = resolution + " resuelve: por " + resolve
-        # print("\n\n\n[info_docs_service] RESOLVE:\n", resolve)
+            if resolution:
+                resolve = resolution + " resuelve: por " + resolve
+            # print("\n\n\n[info_docs_service] RESOLVE:\n", resolve)
 
-        resolve_to_embed = get_resolve_to_embed(resolve)
-        # print(f"[info_documents_service] resolve_to_embed: {resolve_to_embed[-1000:]}")
-        print(f"[info_documents_service] len resolve_to_embed: {len(resolve_to_embed)}")
-        # time.sleep(4000)
+            resolve_to_embed = get_resolve_to_embed(resolve)
+            # print(f"[info_documents_service] resolve_to_embed: {resolve_to_embed[-1000:]}")
+            print(
+                f"[info_documents_service] len resolve_to_embed: {len(resolve_to_embed)}"
+            )
+            # time.sleep(4000)
 
-        paragraphs = separate_text_into_paragraphs(total_text)
-        # print("\n\n\t [info_docs_service] Paragraphs:", paragraphs)
+            paragraphs = separate_text_into_paragraphs(total_text)
+            # print("\n\n\t [info_docs_service] Paragraphs:", paragraphs)
 
-        # Procesar los párrafos y extraer los artículos y sus entidades
-        # print("[info_documents_service] resolution: ", resolution)
-        articles_entities = process_paragraphs(paragraphs)
-        # time.sleep(200)
+            # Procesar los párrafos y extraer los artículos y sus entidades
+            # print("[info_documents_service] resolution: ", resolution)
+            articles_entities = process_paragraphs(paragraphs)
+            # time.sleep(200)
 
-        # Imprimir artículos y entidades
-        # if articles_entities:
-        #     # print("\nArtículos y Entidades encontradas:")
-        #     for i, (article_entity, delimiter) in enumerate(articles_entities):
-        #         print(f"{i + 1}: {article_entity.strip()}")
+            # Imprimir artículos y entidades
+            # if articles_entities:
+            #     # print("\nArtículos y Entidades encontradas:")
+            #     for i, (article_entity, delimiter) in enumerate(articles_entities):
+            #         print(f"{i + 1}: {article_entity.strip()}")
 
         return (
             resolution,
@@ -410,5 +406,5 @@ def get_info_document(document_path):
             final_page + 1,
         )
     else:
-        print("No se encontro el archivo.")
+        print("[info_documents_service] No existe el documento.")
         return None, None, None, None, None, None, None

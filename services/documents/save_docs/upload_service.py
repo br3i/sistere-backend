@@ -61,61 +61,39 @@ def check_document_exists(document_name, collection_name):
         return False
 
 
-def save_document(
-    file, collection_name: str, save_directory=DOCUMENTS_PATH, physical_path=None
-):
+async def save_document(file, collection_name: str, public_url, physical_path=None):
     """
-    Guarda un archivo en el sistema de archivos y registra la información en la base de datos.
+    Guarda un archivo en Supabase y registra su información en la base de datos.
+    Esta versión no guarda el archivo en el sistema de archivos local.
 
     :param file: Objeto de archivo cargado por el usuario.
     :param collection_name: Nombre de la colección asociada al documento.
-    :param db: Sesión activa de la base de datos.
-    :param save_directory: Directorio base donde se guardarán los documentos.
+    :param storage_path: Ruta donde el archivo está almacenado en Supabase.
     :return: Documento registrado en la base de datos o None si ocurre un error.
     """
     db = next(get_db())
-    # print(f"[upload_srv-save_document] file: {file.filename}")
-    # print(f"[upload_srv-save_document] collection_name: {collection_name}")
-    # print(f"[upload_srv-save_document] save_directory: {save_directory}")
-    # print(f"[upload_srv-save_document] db: {db}")
-
-    file_path = None
 
     try:
-        # Crear directorio si no existe
-        if not os.path.exists(save_directory):
-            os.makedirs(save_directory)
-            print(f"Directorio creado: {save_directory}")
-
-        # Guardar el archivo en el sistema de archivos
-        file_path = os.path.join(save_directory, file.filename)
-        with open(file_path, "wb") as buffer:
-            buffer.write(file.file.read())
-        print(f"Archivo guardado en: {file_path}")
-
-        file_path_str = str(Path(file_path))
+        # Crear un nuevo documento en la base de datos
         document = Document(
             name=file.filename,
             collection_name=collection_name,
-            path=file_path_str,
+            path=public_url,
             physical_path=physical_path,
             created_at=datetime.now(pytz.timezone(TIME_ZONE)),
             embeddings_uuids=[],
         )
 
+        # Registrar el documento en la base de datos
         db.add(document)
         db.commit()
-        db.refresh(document)  # Obtener el documento recién creado
+        db.refresh(document)  # Obtener el documento recién creado para devolverlo
 
-        return file_path_str, document
+        return document
 
     except Exception as e:
-        print("[upload_service] entra con la exception")
-        print(f"Error al guardar el archivo o registrar en la base de datos: {e}")
+        print(f"Error al guardar el documento en la base de datos: {e}")
         db.rollback()
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
-            print(f"Archivo eliminado: {file_path}")
         return None
     finally:
         db.close()

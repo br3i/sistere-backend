@@ -1,6 +1,7 @@
 import re
 import os
 import uuid
+import json
 import pandas as pd
 import pytesseract
 import time
@@ -93,17 +94,14 @@ def extract_resolution_from_name(document_name):
     return None  # Si no se encuentra una resolución
 
 
-def process_pdf(file_path: str, collection_name: str, id_document: int):
+def process_pdf(file, public_url, collection_name: str, id_document: int):
     #!!!!!!!!!!!!!!!!!!!!!REVISAR DOCUMENTO 27-2022 -> Error procesando el PDF: list index out of range
     print("\n\n--------------------------[PROCESS_PDF]--------------------------")
-    # print("[process_pdf] file_apath: ", file_path)
+    # print("[process_pdf] file: ", file)
     # print("[process_pdf] collection_name: ", collection_name)
     # print("[process_pdf] id_document: ", id_document)
     db = next(get_db())
     try:
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"El archivo {file_path} no existe.")
-
         (
             resolution,
             number_resolution,
@@ -112,10 +110,10 @@ def process_pdf(file_path: str, collection_name: str, id_document: int):
             resolve,
             resolve_to_embed,
             resolve_page,
-        ) = get_info_document(file_path)
+        ) = get_info_document(file)
         # print(f"\n\n-resolution 1: \n{resolution}")
         if not resolution:
-            resolution = [f"{os.path.splitext(os.path.basename(file_path))[0]}"]
+            resolution = [f"{os.path.splitext(os.path.basename(file.filename))[0]}"]
         # print(f"\n\n-number_resolution: \n{number_resolution}")
         # print("\n----------------------------------------------------------")
         # print(f"\n-resolution 2: \n{resolution}")
@@ -168,7 +166,7 @@ def process_pdf(file_path: str, collection_name: str, id_document: int):
         # Crear metadata base fuera del loop
         base_metadata = {
             "document_name": document_name,
-            "file_path": file_path,
+            "file_path": public_url,
             "resolve_page": resolve_page,  # Asignamos la página de la resolución
             "collection_name": collection_name,
             "considerations": considerations,  # Asignamos las consideraciones a la metadata
@@ -193,7 +191,9 @@ def process_pdf(file_path: str, collection_name: str, id_document: int):
 
                 # Verificar tipo de chunk y sus atributos
                 # print(f"[process_resolve_and_articles] Tipo de chunk: {type(chunk)}")
-                # print(f"\n[process_resolve_and_articles] Contenido del chunk: {chunk}")  # Mostrar solo los primeros 100 caracteres
+                # print(
+                #     f"\n[process_resolve_and_articles] Contenido del chunk: \n{chunk}"
+                # )
 
                 fragment_id = str(uuid.uuid4())
                 # print("[process_any_doc_service] fragment_id = ", fragment_id)
@@ -206,7 +206,9 @@ def process_pdf(file_path: str, collection_name: str, id_document: int):
                     "text": text_chunks[idx].page_content,
                 }
                 # print(f"\n\n----------------------------------------------------------")
-                # print(f"\n\n[process_resolve_and_articles] Metadata para el fragmento: {document_metadata}")
+                # print(
+                #     f"\n\n[process_resolve_and_articles] Metadata para el fragmento: {json.dumps(document_metadata, indent=4)}"
+                # )
 
                 # Llamar a la función que guarda las embeddings
                 collection = return_collection(collection_name)
