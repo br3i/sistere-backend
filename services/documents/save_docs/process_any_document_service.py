@@ -2,17 +2,16 @@ import re
 import os
 import uuid
 import json
-import pandas as pd
 import pytesseract
 import time
-from docx import Document as DocxDocument
-from PIL import Image
 from pdf2image import convert_from_path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from models.database import get_db
 from services.embeddings.save_embedding_service import save_embeddings
-from services.helpers.return_collection import return_collection
+from services.embeddings.get_create_collection import get_collection, create_collection
+
+# from services.helpers.return_collection import return_collection
 from services.documents.treat_docs.info_documents_service import get_info_document
 from dotenv import load_dotenv
 
@@ -49,12 +48,12 @@ except ValueError as e:
     IS_SEPARATOR_REGEX = False
 
 # Ahora pasamos estas variables al text_splitter
-print(f"[Valores del env] CHUNK_SIZE: {CHUNK_SIZE} ({type(CHUNK_SIZE)})")
-print(f"[Valores del env] CHUNK_OVERLAP: {CHUNK_OVERLAP} ({type(CHUNK_OVERLAP)})")
-print(f"[Valores del env] LENGTH_FUNCTION: {LENGTH_FUNCTION} ({type(LENGTH_FUNCTION)})")
-print(
-    f"[Valores del env] IS_SEPARATOR_REGEX: {IS_SEPARATOR_REGEX} ({type(IS_SEPARATOR_REGEX)})"
-)
+print(f"[process_any_doc] CHUNK_SIZE: {CHUNK_SIZE}")
+print(f"[process_any_doc] CHUNK_OVERLAP: {CHUNK_OVERLAP}")
+# print(f"[process_any_doc] LENGTH_FUNCTION: {LENGTH_FUNCTION} ({type(LENGTH_FUNCTION)})")
+# print(
+#     f"[process_any_doc] IS_SEPARATOR_REGEX: {IS_SEPARATOR_REGEX} ({type(IS_SEPARATOR_REGEX)})"
+# )
 
 # Configuración del splitter de texto
 # text_splitter = RecursiveCharacterTextSplitter(
@@ -95,13 +94,29 @@ def extract_resolution_from_name(document_name):
 
 
 def process_pdf(file, public_url, collection_name: str, id_document: int):
-    #!!!!!!!!!!!!!!!!!!!!!REVISAR DOCUMENTO 27-2022 -> Error procesando el PDF: list index out of range
     print("\n\n--------------------------[PROCESS_PDF]--------------------------")
     # print("[process_pdf] file: ", file)
     # print("[process_pdf] collection_name: ", collection_name)
     # print("[process_pdf] id_document: ", id_document)
     db = next(get_db())
     try:
+        collection = get_collection(collection_name)
+
+        if collection is None:
+            print(
+                f"[process_resolve_and_articles] La colección '{collection_name}' no existe, creando..."
+            )
+            collection = create_collection(collection_name)
+            if collection:
+                print(
+                    f"[process_resolve_and_articles] Colección creada: {collection.name}"
+                )
+            else:
+                print(f"[process_resolve_and_articles] Error al crear la colección.")
+        else:
+            print(
+                f"[process_resolve_and_articles] Colección obtenida: {collection.name}"
+            )
         (
             resolution,
             number_resolution,
@@ -211,10 +226,6 @@ def process_pdf(file, public_url, collection_name: str, id_document: int):
                 # )
 
                 # Llamar a la función que guarda las embeddings
-                collection = return_collection(collection_name)
-                # print(f"\n\n----------------------------------------------------------")
-                # print(f"\n\n[process_resolve_and_articles] Collection: {collection}")
-
                 save_embeddings(
                     [chunk.page_content], collection, document_metadata, id_document, db
                 )

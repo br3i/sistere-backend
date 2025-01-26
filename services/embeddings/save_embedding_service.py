@@ -4,7 +4,10 @@ from services.embeddings.get_embedding_service import get_embeddings
 
 
 def save_embeddings(chunk, collection, document_metadata, id_document, db):
-    # print(f"\n\n\n\n------------------[save_embeddings]-------------------")
+    print(f"\n\n\n\n------------------[save_embeddings]-------------------")
+    # print(f"[save_embeddings] collection: {collection}")
+    # print(f"[save_embeddings] collection type: {type(collection)}")
+
     # print("\n[save_embedding_service] id_document: ", id_document)
     # print("\n[save_embedding_service] db: ", db)
     # print(

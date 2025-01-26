@@ -5,7 +5,6 @@
 import os
 from fastapi import FastAPI
 from routes.rt_code import router as code_router
-from routes.rt_db_nr import router as db_nr_router
 from routes.rt_documents import router as documents_router
 from routes.rt_notification import router as notification_router
 from routes.rt_query import router as query_router
@@ -28,7 +27,6 @@ init_db(reset=reset_db)
 
 # Incluir las rutas
 app.include_router(code_router)
-app.include_router(db_nr_router)
 app.include_router(documents_router)
 app.include_router(notification_router)
 app.include_router(query_router)

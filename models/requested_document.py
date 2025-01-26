@@ -23,9 +23,7 @@ class RequestedDocument(Base):
     document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
 
     # Relación con el modelo Document
-    document = relationship(
-        "Document", back_populates="requests", overlaps="document_ref"
-    )
+    document = relationship("Document", back_populates="requests")
 
     def __repr__(self):
         return f"<RequestedDocument(id={self.id}, document_id={self.document_id}, last_requested_at={self.last_requested_at}, requested_count={self.requested_count})>"

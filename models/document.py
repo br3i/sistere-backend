@@ -36,7 +36,6 @@ class Document(Base):
         "RequestedDocument",
         back_populates="document",
         cascade="all, delete-orphan",
-        overlaps="document_ref",
     )
 
     document_metrics = relationship(

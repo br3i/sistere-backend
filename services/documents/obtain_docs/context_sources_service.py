@@ -2,12 +2,15 @@ import os
 import json
 import time
 import numpy as np
+import requests
 from services.documents.save_docs.save_requested_document import save_requested_document
 from services.documents.treat_word_list.generate_variations import generate_variations
-from services.helpers.return_collection import return_collection
 from services.helpers.extract_numbers import extract_numbers
-from services.nr_database.nr_connection_service import get_collection_names
 from services.embeddings.get_embedding_service import get_embeddings
+from services.embeddings.get_create_collection import (
+    get_collection,
+    get_list_collections,
+)
 
 
 def get_context_sources(query: str, word_list, n_documents):
@@ -23,7 +26,7 @@ def get_context_sources(query: str, word_list, n_documents):
 
     try:
         # Obtener colecciones disponibles
-        collection_names = get_collection_names()
+        collection_names = get_list_collections()
         print(f"Valor de colecction names que se obtiene: {collection_names}")
         if not collection_names:
             return {"error": "No se encontraron colecciones en la base de datos."}
@@ -78,7 +81,7 @@ def get_context_sources(query: str, word_list, n_documents):
 
         for collection_name in collection_names:
             print(f"[contex_sources_service] Buscando en colección: {collection_name}")
-            collection = return_collection(collection_name)
+            collection = get_collection(collection_name)
             print(f"[contex_sources_service] Tipo de collection: {type(collection)}")
 
             search_results = collection.query(  # type: ignore
