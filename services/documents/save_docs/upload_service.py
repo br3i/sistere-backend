@@ -13,52 +13,6 @@ load_dotenv(dotenv_path)
 
 # Ahora puedes acceder a las variables de entorno
 TIME_ZONE = os.getenv("TIME_ZONE", "America/Guayaquil")
-DOCUMENTS_PATH = os.getenv("DOCUMENTS_PATH", "./documents")
-
-
-def get_files(directory=DOCUMENTS_PATH):
-    print(
-        f"Accediendo al directorio: {os.path.abspath(directory)}"
-    )  # Verifica la ruta absoluta
-    if not os.path.exists(directory):
-        print(f"El directorio {directory} no existe.")
-        return []
-
-    files = os.listdir(directory)
-    print(f"Archivos encontrados: {files}")
-    return files
-
-
-def check_document_exists(document_name, collection_name):
-    # print(
-    #     f"[UPLOAD_SERVICE] Llega con estos valores: dn:{document_name} y cn:{collection_name}"
-    # )
-
-    try:
-        # Obtener la sesión de la base de datos
-        db_session = next(get_db())
-
-        # Realizar una consulta en la base de datos buscando coincidencias
-        document = (
-            db_session.query(Document)
-            .filter(
-                Document.name == document_name,
-                Document.collection_name == collection_name,
-            )
-            .first()
-        )  # Obtener solo el primer resultado
-
-        # Si se encuentra un documento, significa que ya existe
-        if document:
-            print(f"[UPLOAD_SERVICE] Documento ya existe en la base de datos.")
-            return True
-        else:
-            print(f"[UPLOAD_SERVICE] Documento no encontrado en la base de datos.")
-            return False
-
-    except Exception as e:
-        print(f"Error al comprobar la existencia del documento: {e}")
-        return False
 
 
 async def save_document(file, collection_name: str, public_url, physical_path=None):

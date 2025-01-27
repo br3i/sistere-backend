@@ -9,5 +9,8 @@ load_dotenv(dotenv_path)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "Not found")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "Not found")
 
-# Crear el cliente de Supabase
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def get_client_supabase():
+    client_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print(f"[supabase_client] client_supabase: {client_supabase}")
+    return client_supabase

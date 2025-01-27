@@ -21,14 +21,10 @@ from services.embeddings.get_create_collection import get_collection, create_col
 
 # from services.helpers.return_collection import return_collection
 from services.helpers.system_usage import get_system_usage
-from services.helpers.get_image_page import extract_page_image
 from services.helpers.clean_filename import clean_filename
-from services.documents.save_docs.upload_service import (
-    check_document_exists,
-    save_document,
-)
+from services.documents.save_docs.upload_service import save_document
 from services.documents.save_docs.process_any_document_service import process_pdf
-from models.supabase_client import supabase
+from models.supabase_client import get_client_supabase
 from services.metrics.save_metrics.save_metrics_docs import save_metrics_docs
 
 #!!!!!!!!!!!CORREGIR EL USO DE GET_DOCUMENTS, que sea solo aqui
@@ -69,102 +65,6 @@ async def get_documents_from_db():
     ]
 
 
-# @router.get("/get_page_image")
-# async def get_page_image(file_path: str, resolve_page: int):
-#     try:
-#         # Verificar si el archivo existe en el directorio
-#         file_path = os.path.relpath(file_path, start="documents")
-#         full_path = os.path.join(DOCUMENTS_PATH, file_path)
-#         if not os.path.exists(full_path):
-#             raise HTTPException(status_code=404, detail="Archivo no encontrado")
-
-#         # Obtener la imagen de la página solicitada
-#         image = extract_page_image(full_path, resolve_page)
-
-#         # Convertir la imagen a un formato adecuado para enviarla como respuesta
-#         img_byte_arr = io.BytesIO()
-#         image.save(img_byte_arr, format="PNG")
-#         img_byte_arr.seek(0)
-
-#         return StreamingResponse(img_byte_arr, media_type="image/png")
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.websocket("/get_page_images")
-async def get_page_images(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        # Recibir datos de las solicitudes como una lista
-        data = await websocket.receive_json()
-        print("[rt_documents] data: ", data)
-
-        for request in data:
-            try:
-                file_path = request["file_path"]
-                resolve_page = request["resolve_page"]
-
-                # Verificar que el archivo existe
-                file_path = os.path.relpath(file_path, start="documents")
-                full_path = os.path.join("documents", file_path)
-                if not os.path.exists(full_path):
-                    # Enviar un mensaje de error para este archivo/página
-                    await websocket.send_json(
-                        {
-                            "error": f"Archivo no encontrado: {file_path}",
-                            "file_path": file_path,
-                            "resolve_page": resolve_page,
-                        }
-                    )
-                    continue
-
-                # Extraer la imagen de la página
-                image = extract_page_image(full_path, resolve_page)
-
-                # Convertir la imagen a base64 para enviarla por WebSocket
-                img_byte_arr = io.BytesIO()
-                image.save(img_byte_arr, format="PNG")
-                img_byte_arr.seek(0)
-                img_base64 = base64.b64encode(img_byte_arr.getvalue()).decode("utf-8")
-
-                # Enviar la imagen y los metadatos como respuesta
-                await websocket.send_json(
-                    {
-                        "file_path": file_path,
-                        "document_name": os.path.basename(file_path),
-                        "resolve_page": resolve_page,
-                        "image": img_base64,
-                    }
-                )
-            except Exception as e:
-                # Enviar un mensaje de error en caso de fallo
-                await websocket.send_json(
-                    {
-                        "error": str(e),
-                        "file_path": request.get("file_path", "Desconocido"),
-                        "resolve_page": request.get("resolve_page", "Desconocido"),
-                    }
-                )
-
-    except WebSocketDisconnect:
-        print("WebSocket desconectado")
-    except Exception as e:
-        print(f"Error en WebSocket: {e}")
-        await websocket.close()
-
-
-@router.get("/document/{filename}")
-async def serve_document(filename: str):
-    # print('[rt_document] Llega a la función de serve_document')
-    file_path = os.path.join(DOCUMENTS_PATH, unquote(filename))
-    # print(f'[rt_document] document_directory: {DOCUMENTS_PATH}, file_path: {file_path}')
-
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type="application/pdf")
-    else:
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
-
-
 @router.post("/document")
 async def document_post(collection_name: str = Form(...), file: UploadFile = File(...)):
     start_time = time.time()
@@ -185,7 +85,8 @@ async def document_post(collection_name: str = Form(...), file: UploadFile = Fil
         storage_path = f"{collection_name}/{cleaned_filename}"
 
         # Verificar si el archivo ya existe en la colección
-        response = supabase.storage.from_("documents").list(collection_name)
+        client_supabase = get_client_supabase()
+        response = client_supabase.storage.from_("documents").list(collection_name)
         existing_files = [item["name"] for item in response if "name" in item]
 
         if cleaned_filename in existing_files:
@@ -201,8 +102,10 @@ async def document_post(collection_name: str = Form(...), file: UploadFile = Fil
 
         # Subir el archivo a Supabase Storage
         upload_start = time.time()
-        response = supabase.storage.from_("documents").upload(
-            storage_path, await file.read()
+        response = client_supabase.storage.from_("documents").upload(
+            storage_path,
+            await file.read(),
+            file_options={"Content-Type": f"{file.content_type}"},  # type: ignore
         )
         upload_time = time.time() - upload_start
 
@@ -219,7 +122,9 @@ async def document_post(collection_name: str = Form(...), file: UploadFile = Fil
             )
 
         # Obtener la URL pública del archivo
-        public_url = supabase.storage.from_("documents").get_public_url(storage_path)
+        public_url = client_supabase.storage.from_("documents").get_public_url(
+            storage_path
+        )
         print("[public_url] ", public_url)
 
         if not public_url:

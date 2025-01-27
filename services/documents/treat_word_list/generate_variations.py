@@ -1,9 +1,41 @@
 import itertools
 
+
 def generate_variations(text):
     vowels = "aeiou"
-    accents = {"a": ["a", "á"], "e": ["e", "é"], "i": ["i", "í"], "o": ["o", "ó"], "u": ["u", "ú"]}
+    accents = {
+        "a": ["a", "á"],
+        "e": ["e", "é"],
+        "i": ["i", "í"],
+        "o": ["o", "ó"],
+        "u": ["u", "ú"],
+    }
     words = text.split()
+
+    # Función para verificar si una palabra tiene la tilde correctamente
+    def has_correct_accents(word):
+        # Tildes correctas según reglas ortográficas en español
+        # Las tildes solo deben aparecer si la palabra lo requiere
+        accent_rules = {
+            "a": ["á"],
+            "e": ["é"],
+            "i": ["í"],
+            "o": ["ó"],
+            "u": ["ú"],
+            "á": ["á"],
+            "é": ["é"],
+            "í": ["í"],
+            "ó": ["ó"],
+            "ú": ["ú"],
+        }
+
+        for char in word:
+            if char in accent_rules:
+                # Si tiene tilde, debe ser el carácter correcto de acuerdo con las reglas
+                correct_chars = accent_rules.get(char, [])
+                if char not in correct_chars:
+                    return False  # Si la tilde es incorrecta, la palabra es inválida
+        return True
 
     # Generate variations for each word
     def get_word_variations(word):
@@ -13,7 +45,7 @@ def generate_variations(text):
                 current_variations = []
                 for variation in variations:
                     for acc in accents[char.lower()]:
-                        new_word = variation[:i] + acc + variation[i+1:]
+                        new_word = variation[:i] + acc + variation[i + 1 :]
                         current_variations.append(new_word)
                 variations = current_variations
         return list(set(variations))  # Remove duplicates
@@ -22,18 +54,38 @@ def generate_variations(text):
     all_word_variations = [get_word_variations(word) for word in words]
     combinations = list(itertools.product(*all_word_variations))
 
-    # Create all variations with proper capitalization
-    result = [" ".join(phrase) for phrase in combinations]
+    # Crear solo variaciones que sean correctas según la regla de tildes
+    valid_combinations = [
+        " ".join(phrase)
+        for phrase in combinations
+        if has_correct_accents(" ".join(phrase))
+    ]
 
     # Add capitalization cases
-    capitalized = [variant.capitalize() for variant in result]  # First word capitalized
-    fully_capitalized = [variant.upper() for variant in result]  # All words capitalized
-    first_phrase_capitalized = [" ".join([word.capitalize() for word in variant.split()]) for variant in result]  # Each word capitalized
+    capitalized = [
+        variant.capitalize() for variant in valid_combinations
+    ]  # First word capitalized
+    fully_capitalized = [
+        variant.upper() for variant in valid_combinations
+    ]  # All words capitalized
+    first_phrase_capitalized = [
+        " ".join([word.capitalize() for word in variant.split()])
+        for variant in valid_combinations
+    ]  # Each word capitalized
 
     # Combine all variations and remove duplicates
-    all_variations = sorted(set(result + capitalized + fully_capitalized + first_phrase_capitalized))
+    all_variations = sorted(
+        set(
+            valid_combinations
+            + capitalized
+            + fully_capitalized
+            + first_phrase_capitalized
+        )
+    )
 
     # Ensure the original text is the first option
     if text in all_variations:
-        all_variations.remove(text)  # Remove the original text if it's already in the list
+        all_variations.remove(
+            text
+        )  # Remove the original text if it's already in the list
     return [text] + all_variations  # Prepend the original text to the list

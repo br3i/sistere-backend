@@ -27,6 +27,10 @@ def get_context_sources(query: str, word_list, n_documents):
     try:
         # Obtener colecciones disponibles
         collection_names = get_list_collections()
+        if collection_names is not None:
+            collection_names = [collection.name for collection in collection_names]
+        else:
+            collection_names = []
         print(f"Valor de colecction names que se obtiene: {collection_names}")
         if not collection_names:
             return {"error": "No se encontraron colecciones en la base de datos."}
@@ -56,6 +60,10 @@ def get_context_sources(query: str, word_list, n_documents):
 
             metadata_filters = {"$or": or_filters}
 
+        # Si no se encuentran números, agregar un filtro predeterminado
+        if len(numbers_from_query) == 0:
+            metadata_filters = {}  # Filtro predeterminado si no hay números
+
         print(
             "[CONTEXT-SOURCES-SERVICE] Filtros de metadata: ",
             json.dumps(metadata_filters, indent=4, default=str),
@@ -84,14 +92,31 @@ def get_context_sources(query: str, word_list, n_documents):
             collection = get_collection(collection_name)
             print(f"[contex_sources_service] Tipo de collection: {type(collection)}")
 
-            search_results = collection.query(  # type: ignore
-                query_embeddings=[query_embedding],
-                n_results=n_documents,
-                where=metadata_filters,  # type: ignore
-                where_document=full_text_filters,  # type: ignore
-                include=["documents", "metadatas", "distances"],  # type: ignore
-            )
-            # print(f"\nRESULTS\n\n------[contex_sources_service] Resultado de search_results {json.dumps(search_results, indent=4, default=str)}")
+            # Condicional para pasar los filtros solo si hay datos en ellos
+            query_params = {
+                "query_embeddings": [query_embedding],
+                "n_results": n_documents,
+                "include": ["documents", "metadatas", "distances"],
+            }
+
+            # Solo añadimos el filtro de metadata si tiene datos
+            if metadata_filters:
+                query_params["where"] = metadata_filters
+
+            # Solo añadimos el filtro de texto completo si tiene datos
+            if full_text_filters.get("$or"):
+                query_params["where_document"] = full_text_filters
+
+            if collection is not None:
+                search_results = collection.query(**query_params)
+            else:
+                print(
+                    f"[contex_sources_service] La colección {collection_name} es None"
+                )
+                continue
+            # print(
+            #     f"\nRESULTS\n\n------[contex_sources_service] Resultado de search_results {json.dumps(search_results, indent=4, default=str)}"
+            # )
 
             # Verificar si 'documents' contiene resultados y procesarlos
             if (
