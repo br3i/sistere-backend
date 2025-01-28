@@ -67,6 +67,7 @@ async def get_documents_from_db():
 
 @router.post("/document")
 async def document_post(collection_name: str = Form(...), file: UploadFile = File(...)):
+    db: Session = SessionLocal()
     start_time = time.time()
 
     # Medición inicial de recursos
@@ -99,6 +100,8 @@ async def document_post(collection_name: str = Form(...), file: UploadFile = Fil
                     "execution_time": elapsed_time,
                 }
             )
+
+        save_start = time.time()
 
         # Subir el archivo a Supabase Storage
         upload_start = time.time()
@@ -140,7 +143,6 @@ async def document_post(collection_name: str = Form(...), file: UploadFile = Fil
                 }
             )
 
-        save_start = time.time()
         result = await save_document(
             file, collection_name, public_url, physical_path=None
         )
@@ -166,11 +168,15 @@ async def document_post(collection_name: str = Form(...), file: UploadFile = Fil
         print("[rt_documents] file_path: ", public_url)
         print("[rt_documents] document: ", document)
 
+        # Medir recursos después del procesamiento
+        process_cpu, process_memory = get_system_usage()
+
         # Simular el procesamiento del documento
         process_start = time.time()
         doc_len, chunk_len = process_pdf(
             file, public_url, collection_name, document.id  # type: ignore
         )
+
         process_time = time.time() - process_start
 
         # Medición de recursos después del procesamiento
@@ -182,10 +188,25 @@ async def document_post(collection_name: str = Form(...), file: UploadFile = Fil
             "upload_time": upload_time,
             "process_time": process_time,
             "total_time": total_time,
+            "save_time": save_time,
+        }
+        cpu_usage = {
+            "initial": initial_cpu,
+            "save": save_cpu,
+            "process": process_cpu,
+            "final": final_cpu,
         }
 
-        cpu_usage = {"initial": initial_cpu, "final": final_cpu}
-        memory_usage = {"initial": initial_memory, "final": final_memory}
+        memory_usage = {
+            "initial": initial_memory,
+            "save": save_memory,
+            "process": process_memory,
+            "final": final_memory,
+        }
+
+        save_metrics_docs(
+            db, document.id, execution_times, cpu_usage, memory_usage  # type: ignore
+        )
 
         # Retornar respuesta exitosa
         return JSONResponse(

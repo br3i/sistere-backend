@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from models.metric import Metric
 from models.metric_extra_document import MetricExtraDocument
+import time
 
 
 def save_metrics_docs(
@@ -11,6 +12,9 @@ def save_metrics_docs(
     memory_usage: dict,
 ):
     # print("\n\n[save_metrics]")
+    # print(f"[save_metrics] execution_times: {execution_times}")
+    # print(f"[save_metrics] cpu_usage: {cpu_usage}")
+    # print(f"[save_metrics] memory_usage: {memory_usage}")
     metrics = Metric(
         total_time=execution_times.get("total_time", 0),
         cpu_initial=cpu_usage.get("initial", 0),

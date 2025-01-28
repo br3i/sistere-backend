@@ -12,7 +12,7 @@ def save_metrics_response(db: Session, metrics_data):
     # memory_final = metrics_data["memory_usage"]["final"]
 
     metrics = Metric(
-        total_time=metrics_data.get("total_time", 0),
+        total_time=metrics_data.get("total_duration", 0),
         cpu_initial=metrics_data.get("cpu_usage", {}).get("initial", 0),
         cpu_final=metrics_data.get("cpu_usage", {}).get("final", 0),
         memory_initial=metrics_data.get("memory_usage", {}).get("initial", 0),
