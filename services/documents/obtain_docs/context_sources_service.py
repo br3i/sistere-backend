@@ -197,6 +197,9 @@ def get_context_sources(query: str, word_list, n_documents):
         # Una vez que se han procesado todas las colecciones, puedes ordenar y generar el contexto global
         if all_documents_global:
             all_documents_global.sort(key=lambda x: x["distance"])
+
+            all_documents_global = all_documents_global[:n_documents]
+
             context = ", ".join(
                 [
                     f"{doc['document_name']} [{doc['content']}]"
