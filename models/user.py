@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.orm import relationship
 from .database import Base
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Especifica la ruta al archivo .env

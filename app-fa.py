@@ -1,9 +1,11 @@
 # uvicorn app-fa:app --reload --host 0.0.0.0 --port 8080
 # uvicorn app-fa:app --reload --host 0.0.0.0 --port 8080 --workers 4
+# ngrok http --scheme=http 8080
 
 # app-fa.py
 import os
 from fastapi import FastAPI
+from routes.rt_auth import router as auth_router
 from routes.rt_code import router as code_router
 from routes.rt_documents import router as documents_router
 from routes.rt_notification import router as notification_router
@@ -26,6 +28,7 @@ reset_db = (
 init_db(reset=reset_db)
 
 # Incluir las rutas
+app.include_router(auth_router)
 app.include_router(code_router)
 app.include_router(documents_router)
 app.include_router(notification_router)
