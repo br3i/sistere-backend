@@ -12,31 +12,6 @@ def generate_variations(text):
     }
     words = text.split()
 
-    # Función para verificar si una palabra tiene la tilde correctamente
-    def has_correct_accents(word):
-        # Tildes correctas según reglas ortográficas en español
-        # Las tildes solo deben aparecer si la palabra lo requiere
-        accent_rules = {
-            "a": ["á"],
-            "e": ["é"],
-            "i": ["í"],
-            "o": ["ó"],
-            "u": ["ú"],
-            "á": ["á"],
-            "é": ["é"],
-            "í": ["í"],
-            "ó": ["ó"],
-            "ú": ["ú"],
-        }
-
-        for char in word:
-            if char in accent_rules:
-                # Si tiene tilde, debe ser el carácter correcto de acuerdo con las reglas
-                correct_chars = accent_rules.get(char, [])
-                if char not in correct_chars:
-                    return False  # Si la tilde es incorrecta, la palabra es inválida
-        return True
-
     # Generate variations for each word
     def get_word_variations(word):
         variations = [word]  # Start with the original word
@@ -54,33 +29,19 @@ def generate_variations(text):
     all_word_variations = [get_word_variations(word) for word in words]
     combinations = list(itertools.product(*all_word_variations))
 
-    # Crear solo variaciones que sean correctas según la regla de tildes
-    valid_combinations = [
-        " ".join(phrase)
-        for phrase in combinations
-        if has_correct_accents(" ".join(phrase))
-    ]
+    # Create all variations with proper capitalization
+    result = [" ".join(phrase) for phrase in combinations]
 
     # Add capitalization cases
-    capitalized = [
-        variant.capitalize() for variant in valid_combinations
-    ]  # First word capitalized
-    fully_capitalized = [
-        variant.upper() for variant in valid_combinations
-    ]  # All words capitalized
+    capitalized = [variant.capitalize() for variant in result]  # First word capitalized
+    fully_capitalized = [variant.upper() for variant in result]  # All words capitalized
     first_phrase_capitalized = [
-        " ".join([word.capitalize() for word in variant.split()])
-        for variant in valid_combinations
+        " ".join([word.capitalize() for word in variant.split()]) for variant in result
     ]  # Each word capitalized
 
     # Combine all variations and remove duplicates
     all_variations = sorted(
-        set(
-            valid_combinations
-            + capitalized
-            + fully_capitalized
-            + first_phrase_capitalized
-        )
+        set(result + capitalized + fully_capitalized + first_phrase_capitalized)
     )
 
     # Ensure the original text is the first option
