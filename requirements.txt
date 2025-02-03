@@ -1,6 +1,4 @@
 ollama==0.4.4 # type: ignore
-chromadb==0.5.18 # type: ignore
-chromadb-client==0.6.3 # type: ignore
 fastapi==0.112.2 # type: ignore
 httpx==0.27.2 # type: ignore
 PyJWT==2.10.1 #type: ignore
@@ -21,6 +19,7 @@ python-multipart==0.0.20 # type: ignore
 psycopg2==2.9.10 # type: ignore
 PyMuPDF==1.25.2 # type: ignore
 pytz==2024.2 # type: ignore
+scikit-learn==1.6.1 # type: ignore
 SQLAlchemy==2.0.32 # type: ignore
 supabase==2.12.0 # type: ignore
 uvicorn==0.34.0 # type: ignore

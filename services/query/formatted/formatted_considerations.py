@@ -3,6 +3,12 @@ import re
 
 def clean_text(text):
     """Limpia el texto con los patrones definidos."""
+    if isinstance(text, list):
+        # Si es una lista, conviértela en una cadena
+        text = " ".join(
+            map(str, text)
+        )  # Concatena los elementos de la lista en un solo string
+
     replace_patterns = [
         (r"[\n\r\f]", " "),  # Reemplaza saltos de línea y de página por un espacio
         (r"\|", ","),  # Reemplaza "|" por una coma

@@ -1,8 +1,6 @@
 import os
 import pytz
 from datetime import datetime
-from pathlib import Path
-from sqlalchemy.orm import Session
 from models.database import get_db
 from models.document import Document
 from dotenv import load_dotenv

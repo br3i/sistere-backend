@@ -1,6 +1,7 @@
 # routes/routes_query.py
 import os
 import time
+import traceback
 import json
 import uuid
 import pytz
@@ -360,6 +361,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 session_data.pop(user_session_uuid)
     except Exception as e:
         print(f"Unexpected error: {e}")
+        print("Traceback of the error:")
+        print(traceback.format_exc())
         cancel_event.set()
     finally:
         db.close()

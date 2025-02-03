@@ -1,15 +1,14 @@
 import re
 import os
 import uuid
-import json
 import pytesseract
-import time
 from pdf2image import convert_from_path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from models.database import get_db
 from services.embeddings.save_embedding_service import save_embeddings
-from services.embeddings.get_create_collection import get_collection, create_collection
+
+# from services.embeddings.get_create_collection import get_collection, create_collection
 
 # from services.helpers.return_collection import return_collection
 from services.documents.treat_docs.info_documents_service import get_info_document
@@ -100,23 +99,6 @@ def process_pdf(file, public_url, collection_name: str, id_document: int):
     # print("[process_pdf] id_document: ", id_document)
     db = next(get_db())
     try:
-        collection = get_collection(collection_name)
-
-        if collection is None:
-            print(
-                f"[process_resolve_and_articles] La colección '{collection_name}' no existe, creando..."
-            )
-            collection = create_collection(collection_name)
-            if collection:
-                print(
-                    f"[process_resolve_and_articles] Colección creada: {collection.name}"
-                )
-            else:
-                print(f"[process_resolve_and_articles] Error al crear la colección.")
-        else:
-            print(
-                f"[process_resolve_and_articles] Colección obtenida: {collection.name}"
-            )
         (
             resolution,
             number_resolution,
@@ -227,7 +209,11 @@ def process_pdf(file, public_url, collection_name: str, id_document: int):
 
                 # Llamar a la función que guarda las embeddings
                 save_embeddings(
-                    [chunk.page_content], collection, document_metadata, id_document, db
+                    [chunk.page_content],
+                    collection_name,
+                    document_metadata,
+                    id_document,
+                    db,
                 )
 
             except Exception as e:

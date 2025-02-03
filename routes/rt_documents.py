@@ -1,56 +1,31 @@
 # routes/routes_documents.py
-import time
 import os
-import io
-import base64
+import time
 from sqlalchemy.orm import Session
-from models.database import SessionLocal
+from models.database import get_db
 from models.document import Document
-from urllib.parse import unquote
 from fastapi import (
     APIRouter,
+    Depends,
     File,
     Form,
     UploadFile,
     HTTPException,
-    WebSocket,
-    WebSocketDisconnect,
 )
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from services.embeddings.get_create_collection import get_collection, create_collection
-
-# from services.helpers.return_collection import return_collection
+from fastapi.responses import JSONResponse
+from models.supabase_client import get_client_supabase
 from services.helpers.system_usage import get_system_usage
 from services.helpers.clean_filename import clean_filename
 from services.documents.save_docs.upload_service import save_document
 from services.documents.save_docs.process_any_document_service import process_pdf
-from models.supabase_client import get_client_supabase
 from services.metrics.save_metrics.save_metrics_docs import save_metrics_docs
-
-#!!!!!!!!!!!CORREGIR EL USO DE GET_DOCUMENTS, que sea solo aqui
-from services.documents.obtain_docs.get_documents_service import get_documents
-
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-from dotenv import load_dotenv
-
-# Especifica la ruta al archivo .env
-dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.env")
-load_dotenv(dotenv_path)
-
-DOCUMENTS_PATH = os.getenv("DOCUMENTS_PATH", "./documents")
+from services.embeddings.get_list_collections import get_list_collections
 
 router = APIRouter()
 
 
-@router.get("/documents_directory")
-async def get_files():
-    documents = get_documents()
-    return documents
-
-
 @router.get("/documents_from_db")
-async def get_documents_from_db():
-    db: Session = SessionLocal()
+async def get_documents_from_db(db: Session = Depends(get_db)):
     documents = db.query(Document).all()
     return [
         {
@@ -65,9 +40,24 @@ async def get_documents_from_db():
     ]
 
 
+@router.get("/list_collections")
+async def list_collections():
+    collections = get_list_collections()
+    if collections:
+        # Devolvemos la lista de colecciones
+        return {
+            "collections": [collection[0] for collection in collections]
+        }  # Aplanamos la lista de tuplas
+    else:
+        return {"message": "No collections found."}
+
+
 @router.post("/document")
-async def document_post(collection_name: str = Form(...), file: UploadFile = File(...)):
-    db: Session = SessionLocal()
+async def document_post(
+    collection_name: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
     start_time = time.time()
 
     # Medición inicial de recursos
@@ -245,6 +235,7 @@ async def edit_document(
     name: str = Form(...),
     collection_name: str = Form(...),
     created_at: str = Form(...),
+    db: Session = Depends(get_db),
 ):
     print(
         "[edit_document] llega con los valores: ",
@@ -253,7 +244,6 @@ async def edit_document(
         collection_name,
         created_at,
     )
-    db: Session = SessionLocal()
 
     # Buscar el documento por su ID
     document = db.query(Document).filter(Document.id == document_id).first()
@@ -305,62 +295,62 @@ async def edit_document(
         db.close()
 
 
-@router.delete("/delete_document/{document_id}")
-async def delete_document(document_id: int):
-    print("[rt_documents] delete_document()")
-    print(f"[rt_documents] valor de document_id : {document_id}")
-    db: Session = SessionLocal()
+# @router.delete("/delete_document/{document_id}")
+# async def delete_document(document_id: int):
+#     print("[rt_documents] delete_document()")
+#     print(f"[rt_documents] valor de document_id : {document_id}")
+#     db: Session = SessionLocal()
 
-    try:
-        # Buscar el documento por su ID
-        document = db.query(Document).filter(Document.id == document_id).first()
+#     try:
+#         # Buscar el documento por su ID
+#         document = db.query(Document).filter(Document.id == document_id).first()
 
-        if not document:
-            raise HTTPException(status_code=404, detail="Documento no encontrado")
+#         if not document:
+#             raise HTTPException(status_code=404, detail="Documento no encontrado")
 
-        # Eliminar el archivo físico del sistema (si existe)
-        if os.path.exists(str(document.path)):
-            os.remove(str(document.path))
+#         # Eliminar el archivo físico del sistema (si existe)
+#         if os.path.exists(str(document.path)):
+#             os.remove(str(document.path))
 
-        if document.embeddings_uuids:  # type: ignore
-            print("[rt_documents] ingresa en el condicional")
-            collection = get_collection(document.collection_name)
+#         if document.embeddings_uuids:  # type: ignore
+#             print("[rt_documents] ingresa en el condicional")
+#             collection = get_collection(document.collection_name)
 
-            # collection = return_collection(document.collection_name)
-            print(f"[rt_documents] collection: {collection}")
-            embeddings_to_delete = document.embeddings_uuids
-            print(f"[rt_documents] embeddings_to_delete: {embeddings_to_delete}")
+#             # collection = return_collection(document.collection_name)
+#             print(f"[rt_documents] collection: {collection}")
+#             embeddings_to_delete = document.embeddings_uuids
+#             print(f"[rt_documents] embeddings_to_delete: {embeddings_to_delete}")
 
-            for id_embedding in embeddings_to_delete:
-                try:
-                    if collection is not None:
-                        collection.delete(ids=id_embedding)  # type: ignore
-                        print(
-                            f"Embeddings con ID {id_embedding} eliminado exitosamente."
-                        )
-                    else:
-                        print(f"Collection not found for document {document.id}")
-                except Exception as e:
-                    print(f"Error al eliminar embedding con ID {id_embedding}: {e}")
-        else:
-            raise HTTPException(
-                status_code=404, detail="Embeddings no encontrados para el documento"
-            )
+#             for id_embedding in embeddings_to_delete:
+#                 try:
+#                     if collection is not None:
+#                         collection.delete(ids=id_embedding)  # type: ignore
+#                         print(
+#                             f"Embeddings con ID {id_embedding} eliminado exitosamente."
+#                         )
+#                     else:
+#                         print(f"Collection not found for document {document.id}")
+#                 except Exception as e:
+#                     print(f"Error al eliminar embedding con ID {id_embedding}: {e}")
+#         else:
+#             raise HTTPException(
+#                 status_code=404, detail="Embeddings no encontrados para el documento"
+#             )
 
-        # Eliminar el registro de la base de datos
-        db.delete(document)
-        db.commit()
+#         # Eliminar el registro de la base de datos
+#         db.delete(document)
+#         db.commit()
 
-        return {
-            "status": "Successfully Deleted",
-            "document_id": document_id,
-            "message": f"El documento '{document.name}' fue eliminado correctamente.",
-        }
+#         return {
+#             "status": "Successfully Deleted",
+#             "document_id": document_id,
+#             "message": f"El documento '{document.name}' fue eliminado correctamente.",
+#         }
 
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=500, detail=f"Error al eliminar el documento: {str(e)}"
-        )
-    finally:
-        db.close()
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(
+#             status_code=500, detail=f"Error al eliminar el documento: {str(e)}"
+#         )
+#     finally:
+#         db.close()

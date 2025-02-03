@@ -13,8 +13,10 @@ def formatted_sources(sources):
         str: String formateado con las fuentes en un solo texto.
     """
     formatted_sources = []
-    if isinstance(sources, dict):
-        print("[formatted_sources] sources es un diccionario")
+
+    # Verifica si 'sources' es una lista
+    if isinstance(sources, list):
+        print("[formatted_sources] sources es una lista")
         for source in sources:
             # Decodificar cada campo relevante
             file_path = urllib.parse.unquote(source.get("file_path", "Desconocido"))

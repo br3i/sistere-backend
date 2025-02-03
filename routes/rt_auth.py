@@ -3,6 +3,7 @@ import os
 import jwt
 import pytz
 import bcrypt
+import hashlib
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
 from typing import Optional
@@ -20,6 +21,7 @@ tz = pytz.timezone(TIME_ZONE)
 
 # Configuración de JWT
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "una_clave_secreta_muy_segura")
+SESSION_KEY = os.getenv("SESSION_KEY", "clave_de_sesion_secreta")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120"))
 
@@ -37,14 +39,52 @@ class TokenResponse(BaseModel):
     token_type: str
 
 
-# Crear un token JWT
+# Crear un token JWT con firma adicional
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     expire = datetime.now(tz) + (
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
+
+    # Usar el timestamp para la firma en lugar de isoformat
+    expire_timestamp = int(expire.timestamp())
+
+    # Crear la firma única basada en el nombre de usuario y la fecha de expiración (en timestamp)
+    session_data = f"{data['sub']}:{expire_timestamp}:{SESSION_KEY}"
+    signature = hashlib.sha256(session_data.encode()).hexdigest()
+
     to_encode = data.copy()
-    to_encode.update({"exp": expire})
+    to_encode.update(
+        {
+            "exp": expire_timestamp,
+            "signature": signature,
+        }  # Añadimos la firma al payload
+    )
+
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+# Función para verificar la firma del token
+def verify_token_signature(payload: dict):
+    try:
+        # Obtener la firma del payload
+        received_signature = payload.get("signature")
+
+        if not received_signature:
+            raise HTTPException(
+                status_code=400, detail="Firma no encontrada en el token"
+            )
+
+        # Regenerar la firma a partir de los datos en el payload
+        expire_timestamp = payload["exp"]  # Tomamos el timestamp del payload
+        session_data = f"{payload['sub']}:{expire_timestamp}:{SESSION_KEY}"
+        generated_signature = hashlib.sha256(session_data.encode()).hexdigest()
+
+        # Verificar que las firmas coinciden
+        if received_signature != generated_signature:
+            raise HTTPException(status_code=400, detail="Firma del token inválida")
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Token inválido o modificado")
 
 
 # Endpoint para iniciar sesión
@@ -71,7 +111,19 @@ async def validate_token(
     token: str = Body(..., embed=True), db: Session = Depends(get_db)
 ):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # Decodificar el token sin verificar la firma (por ahora solo decodificamos)
+        payload = jwt.decode(
+            token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False}
+        )
+
+        # Verificar la firma del token
+        verify_token_signature(payload)
+
+        # Verificación de la expiración
+        exp_timestamp = payload.get("exp")
+        if datetime.now(tz) > datetime.fromtimestamp(exp_timestamp, tz):
+            raise HTTPException(status_code=400, detail="Token expirado")
+
         username: str = payload.get("sub")
         user_id: int = payload.get("user_id")
 
@@ -83,6 +135,7 @@ async def validate_token(
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
         return {"valid": True, "username": username, "user_id": user_id}
+
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=400, detail="Token expirado")
     except jwt.InvalidTokenError:

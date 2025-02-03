@@ -1,10 +1,6 @@
 import PyPDF2
 import re
 import unicodedata
-import time
-
-
-import io
 
 
 def extract_text_from_pages(reader):
@@ -237,9 +233,10 @@ def get_resolution(text):
 
     # Patrones de búsqueda de la resolución
     search_patterns = [
-        r"RESOLUCI[ÓO]N \d{3,4}\.CP\.\d{4,5}",  # El patrón más limpio, ya que el texto ya ha sido limpiado
         r"RESOLUCI[ÓO]N \d{3,4}\.CP\.\d{4,5}",
         r"RESOLUCI[ÓO]N \d{3,4}\.CP\.\d{4,5}",
+        r"RESOLUCI[ÓO]N \d{3,4}\.CP\.\d{4,5}",
+        r"(?i)R\s*E\s*S\s*O\s*L\s*U\s*C\s*I\s*Ó\s*N\s*((?:\d\s*){3})[\s\.]*C\s*P\s*[\s\.]*((?:\d\s*){4})",
     ]
 
     # Buscar la primera coincidencia utilizando los patrones de búsqueda
@@ -281,6 +278,7 @@ def get_resolve(text):
     # resolve_index = re.search(r"unanimidad.*?RESUELVE:\s*(Art[íi]culo)", text, re.IGNORECASE)
 
     patterns = [
+        r"unanimidad,\s*RESUELVE\s*:\s*(Art[íi]culo)",
         r"unanimidad,.*?RESUELVE\s*:\s*(Art[íi]culo)",
         r"unanimidad,.*?RESUELVE:\s*(Art[íi]culo)",
         r"RESUELVE:\s*(Art[íi]culo)",

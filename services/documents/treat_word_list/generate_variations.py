@@ -1,52 +1,81 @@
 import itertools
 
+# Mapping of vowels with their accented versions
+accents = {"a": "á", "e": "é", "i": "í", "o": "ó", "u": "ú"}
 
-def generate_variations(text):
-    vowels = "aeiou"
-    accents = {
-        "a": ["a", "á"],
-        "e": ["e", "é"],
-        "i": ["i", "í"],
-        "o": ["o", "ó"],
-        "u": ["u", "ú"],
-    }
-    words = text.split()
+# Mapping of letters with valid substitutions in Spanish
+substitutions = {"b": ["b", "v"], "v": ["v", "b"]}
 
-    # Generate variations for each word
-    def get_word_variations(word):
-        variations = [word]  # Start with the original word
-        for i, char in enumerate(word):
-            if char.lower() in accents:
-                current_variations = []
-                for variation in variations:
-                    for acc in accents[char.lower()]:
-                        new_word = variation[:i] + acc + variation[i + 1 :]
-                        current_variations.append(new_word)
-                variations = current_variations
-        return list(set(variations))  # Remove duplicates
 
-    # Combine all variations for the phrase
-    all_word_variations = [get_word_variations(word) for word in words]
-    combinations = list(itertools.product(*all_word_variations))
+def classify_word(word):
+    """Determines if the word is acute (aguda), grave, or esdrújula."""
+    word = word.lower()
+    vowels = [i for i, letter in enumerate(word) if letter in accents]
 
-    # Create all variations with proper capitalization
-    result = [" ".join(phrase) for phrase in combinations]
+    if len(vowels) < 2:
+        return "acute"
 
-    # Add capitalization cases
-    capitalized = [variant.capitalize() for variant in result]  # First word capitalized
-    fully_capitalized = [variant.upper() for variant in result]  # All words capitalized
-    first_phrase_capitalized = [
-        " ".join([word.capitalize() for word in variant.split()]) for variant in result
-    ]  # Each word capitalized
+    last = vowels[-1]
+    penultimate = vowels[-2] if len(vowels) > 1 else None
+    antepenultimate = vowels[-3] if len(vowels) > 2 else None
 
-    # Combine all variations and remove duplicates
-    all_variations = sorted(
-        set(result + capitalized + fully_capitalized + first_phrase_capitalized)
+    if antepenultimate is not None:
+        return "esdrujula"
+    elif word[-1] in "aeiouns":
+        return "grave"
+    else:
+        return "acute"
+
+
+def apply_accent(word, word_type):
+    """Applies an accent to the appropriate vowel based on the word type."""
+    word_list = list(word)
+    vowels = [i for i, letter in enumerate(word) if letter in accents]
+
+    if not vowels:
+        return word
+
+    if word_type == "acute" and word[-1] in "aeiouns":
+        index = vowels[-1]
+    elif word_type == "grave" and word[-1] not in "aeiouns":
+        index = vowels[-2] if len(vowels) > 1 else vowels[-1]
+    elif word_type == "esdrujula":
+        index = (
+            vowels[-3]
+            if len(vowels) > 2
+            else vowels[-2] if len(vowels) > 1 else vowels[0]
+        )
+    else:
+        return word
+
+    word_list[index] = accents[word_list[index]]
+    return "".join(word_list)
+
+
+def generate_variations(word):
+    """Generates valid word variations with accents and substitutions, ensuring the original word is always first."""
+    original_word = word.lower()
+    word_type = classify_word(original_word)
+
+    accented_word = apply_accent(original_word, word_type)
+
+    options = [substitutions.get(letter, [letter]) for letter in accented_word]
+
+    variations_set = {"".join(p) for p in itertools.product(*options)}
+
+    # Remove the original word if it appears in the variations set
+    variations_set.discard(original_word)
+
+    # Generate versions with capitalization
+    capitalized_variations = {v.capitalize() for v in variations_set}
+    uppercase_variations = {v.upper() for v in variations_set}
+
+    # Create the final list ensuring the original is first
+    sorted_variations = (
+        [original_word]
+        + sorted(variations_set)
+        + sorted(capitalized_variations)
+        + sorted(uppercase_variations)
     )
 
-    # Ensure the original text is the first option
-    if text in all_variations:
-        all_variations.remove(
-            text
-        )  # Remove the original text if it's already in the list
-    return [text] + all_variations  # Prepend the original text to the list
+    return sorted_variations

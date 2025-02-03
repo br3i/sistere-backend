@@ -10,6 +10,7 @@ from routes.rt_code import router as code_router
 from routes.rt_documents import router as documents_router
 from routes.rt_notification import router as notification_router
 from routes.rt_query import router as query_router
+from routes.rt_reports import router as reports_router
 from routes.rt_requested_document import router as requested_document_router
 from routes.rt_user import router as user_router
 from models import init_db
@@ -33,6 +34,7 @@ app.include_router(code_router)
 app.include_router(documents_router)
 app.include_router(notification_router)
 app.include_router(query_router)
+app.include_router(reports_router)
 app.include_router(requested_document_router)
 app.include_router(user_router)
 
