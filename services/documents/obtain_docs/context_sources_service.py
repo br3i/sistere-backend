@@ -267,13 +267,13 @@ def get_context_sources(query: str, word_list, n_documents):
                 # Procesa el documento y almacénalo en las listas globales
                 document = result.get("document_name", "")
                 resolve_page = result.get("resolve_page", "")
-                distance = result.get("similarity", 0)
+                similarity = result.get("similarity", 0)
                 all_documents_global.append(
                     {
                         "document_name": document,
                         "content": result.get("text", ""),
                         "resolve_page": resolve_page,
-                        "distance": distance,
+                        "similarity": similarity,
                     }
                 )
                 sources_global.append(
@@ -295,13 +295,13 @@ def get_context_sources(query: str, word_list, n_documents):
             for result in word_list_search_results:
                 document = result.get("document_name", "")
                 resolve_page = result.get("resolve_page", "")
-                distance = result.get("similarity", 0)
+                similarity = result.get("similarity", 0)
                 all_documents_global.append(
                     {
                         "document_name": document,
                         "content": result.get("text", ""),
                         "resolve_page": resolve_page,
-                        "distance": distance,
+                        "similarity": similarity,
                     }
                 )
                 sources_global.append(
@@ -323,13 +323,13 @@ def get_context_sources(query: str, word_list, n_documents):
             for result in embedding_search_results:
                 document = result.get("document_name", "")
                 resolve_page = result.get("resolve_page", "")
-                distance = result.get("similarity", 0)
+                similarity = result.get("similarity", 0)
                 all_documents_global.append(
                     {
                         "document_name": document,
                         "content": result.get("text", ""),
                         "resolve_page": resolve_page,
-                        "distance": distance,
+                        "similarity": similarity,
                     }
                 )
                 sources_global.append(
@@ -347,13 +347,20 @@ def get_context_sources(query: str, word_list, n_documents):
                     }
                 )
 
-        # Limitar la cantidad de resultados si es necesario
-        all_documents_global.sort(key=lambda x: x["distance"])
+        # 1. Generar índices para mantener la relación entre documentos y sources
+        indices = list(range(len(all_documents_global)))
 
-        # Tomar los mejores resultados hasta alcanzar n_documents
-        all_documents_global = all_documents_global[:n_documents]
+        # 2. Ordenar índices por distancia (menor primero)
+        indices.sort(key=lambda i: all_documents_global[i]["similarity"], reverse=True)
 
-        # Generar el contexto
+        # 3. Seleccionar los primeros 'n_documents' índices
+        top_indices = indices[:n_documents]
+
+        # 4. Filtrar documentos y sources usando los índices ordenados
+        all_documents_global = [all_documents_global[i] for i in top_indices]
+        selected_sources = [sources_global[i] for i in top_indices]
+
+        # 5. Generar el contexto
         context = ", ".join(
             [
                 f"{doc['document_name']} [{doc['content']}]"
@@ -370,11 +377,11 @@ def get_context_sources(query: str, word_list, n_documents):
         #     f"[get_context_sources] Considerations combinado: {json.dumps(considerations_global, indent=4, default=str)}"
         # )
 
-        save_requested_document(sources_global)
+        save_requested_document(selected_sources)
 
         return {
             "context": context,
-            "sources": sources_global,
+            "sources": selected_sources,
             "considerations": considerations_global,
         }
 
