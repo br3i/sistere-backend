@@ -1,388 +1,197 @@
+import os
 import json
+import time
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
-from models.database import SessionLocal
-from models.embedding import Embedding
 from services.documents.save_docs.save_requested_document import save_requested_document
-from sqlalchemy.sql import text
 from services.documents.treat_word_list.generate_variations import generate_variations
+from services.helpers.return_collection import return_collection
 from services.helpers.extract_numbers import extract_numbers
+from services.nr_database.nr_connection_service import get_collection_names
 from services.embeddings.get_embedding_service import get_embeddings
-from services.embeddings.get_list_collections import get_list_collections
-
-
-# Función de similitud exacta para search_from_numbers
-def calculate_similarity(number_from_query, number_resolution):
-    return 1.0 if str(number_from_query) == str(number_resolution) else 0.0
-
-
-# Función de similitud de Jaccard para search_word_list
-def calculate_jaccard_similarity(word_set, document_set):
-    intersection = len(word_set.intersection(document_set))
-    union = len(word_set.union(document_set))
-    return intersection / union if union != 0 else 0.0
-
-
-def search_from_numbers(numbers_from_query):
-    print(
-        f"\n\n--------------[search_from_numbers] Buscando documentos con números: {numbers_from_query}"
-    )
-    db = SessionLocal()
-
-    # Usar IN para agrupar los números en una sola consulta
-    numbers_from_query_tuple = tuple(numbers_from_query)
-    documents = (
-        db.query(Embedding)
-        .filter(
-            (
-                Embedding.embed_metadata["collection_name"].astext.in_(
-                    numbers_from_query_tuple
-                )
-            )
-            | (
-                Embedding.embed_metadata["number_resolution"].astext.in_(
-                    numbers_from_query_tuple
-                )
-            )
-        )
-        .all()
-    )
-
-    results = []
-    print(
-        f"[search_from_numbers] Documentos encontrados para los números: {len(documents)}"
-    )
-
-    # Extraer metadatos de los documentos encontrados
-    for doc in documents:
-        metadata = doc.embed_metadata
-        print(f"[search_from_numbers] Documento encontrado: {metadata}")
-
-        # Calcular similitud entre el número de la consulta y el número de resolución
-        similarity = calculate_similarity(
-            next(
-                (
-                    num
-                    for num in numbers_from_query
-                    if str(num) == str(metadata.get("number_resolution"))
-                ),
-                None,
-            ),
-            metadata.get("number_resolution"),
-        )
-        print(f"[search_from_numbers] Similitud calculada: {similarity}")
-
-        results.append(
-            {
-                "document_name": metadata.get("document_name"),
-                "file_path": metadata.get("file_path"),
-                "resolve_page": metadata.get("resolve_page"),
-                "collection_name": metadata.get("collection_name"),
-                "considerations": metadata.get("considerations"),
-                "number_resolution": metadata.get("number_resolution"),
-                "uuid": metadata.get("uuid"),
-                "chunk_index": metadata.get("chunk_index"),
-                "text": metadata.get("text"),
-                "copia": metadata.get("copia"),
-                "similarity": similarity,
-            }
-        )
-
-    return results
-
-
-def search_word_list(word_list, collection_name):
-    print(
-        f"\n\n--------------[search_word_list] Buscando documentos con palabras clave: {word_list}"
-    )
-    db = SessionLocal()
-
-    all_variations = []
-    for word in word_list:
-        variations = generate_variations(word)  # Genera variaciones de la palabra
-        print(f"[search_word_list] Variaciones generadas para '{word}': {variations}")
-        all_variations.extend(variations)  # Agregamos las variaciones a la lista total
-
-    print(
-        f"[search_word_list] Lista completa de variaciones para la búsqueda: {all_variations}"
-    )
-
-    # Usar IN para agrupar las variaciones en una sola consulta
-    documents = (
-        db.query(Embedding)
-        .filter(
-            Embedding.embed_metadata["text"].astext.ilike(
-                f"%{'%'})%".join(all_variations)
-            ),
-            Embedding.embed_metadata["collection_name"].astext == collection_name,
-        )
-        .all()
-    )
-
-    results = []
-    print(
-        f"[search_word_list] Documentos encontrados para las variaciones: {len(documents)}"
-    )
-
-    # Extraer metadatos de los documentos encontrados
-    for doc in documents:
-        metadata = doc.embed_metadata
-        print(f"[search_word_list] Documento encontrado con variación: {metadata}")
-
-        # Calcular similitud con Jaccard
-        document_words = set(
-            metadata.get("text", "").split()
-        )  # Palabras del texto del documento
-        variation_set = set(" ".join(all_variations))  # Palabras de la variación
-
-        similarity = calculate_jaccard_similarity(variation_set, document_words)
-        print(f"[search_word_list] Similitud de Jaccard calculada: {similarity}")
-
-        results.append(
-            {
-                "document_name": metadata.get("document_name"),
-                "file_path": metadata.get("file_path"),
-                "resolve_page": metadata.get("resolve_page"),
-                "collection_name": metadata.get("collection_name"),
-                "considerations": metadata.get("considerations"),
-                "number_resolution": metadata.get("number_resolution"),
-                "uuid": metadata.get("uuid"),
-                "chunk_index": metadata.get("chunk_index"),
-                "text": metadata.get("text"),
-                "copia": metadata.get("copia"),
-                "similarity": similarity,
-            }
-        )
-
-    return results
-
-
-def search_embedding_query(query_embedding, collection_name, limit=100):
-    db = SessionLocal()
-    try:
-        query = """
-            SELECT *, 
-                   embedding <=> CAST(:embedding AS VECTOR) AS distance
-            FROM embeddings
-            WHERE embed_metadata->>'collection_name' = :col_name
-            ORDER BY distance
-            LIMIT :limit
-        """
-
-        results = db.execute(
-            text(query),
-            {"embedding": query_embedding, "col_name": collection_name, "limit": limit},
-        ).fetchall()
-
-        return [
-            {
-                "document_name": row.embed_metadata["document_name"],
-                "file_path": row.embed_metadata["file_path"],
-                "resolve_page": row.embed_metadata["resolve_page"],
-                "collection_name": row.embed_metadata["collection_name"],
-                "considerations": row.embed_metadata["considerations"],
-                "number_resolution": row.embed_metadata["number_resolution"],
-                "uuid": row.embed_metadata["uuid"],
-                "chunk_index": row.embed_metadata["chunk_index"],
-                "text": row.embed_metadata["text"],
-                "copia": row.embed_metadata["copia"],
-                "similarity": 1 - row.distance,
-            }
-            for row in results
-        ]
-    finally:
-        db.close()
 
 
 def get_context_sources(query: str, word_list, n_documents):
     print(
-        f"\n\n--------------[get_context_sources] Iniciando búsqueda con query: {query}"
+        f"\n\n--------------[contex_sources_service] Iniciando búsqueda con query: {query}"
     )
-    print(f"[get_context_sources] Número de documentos a buscar: {n_documents}")
-    print(f"[get_context_sources] n_documents type: {type(n_documents)}")
-
+    # print(f"[context_sources_service] Número de documentos a buscar: {n_documents}")
+    # print(f"[context_sources_service] n_documents type: {type(n_documents)}")
     n_documents = int(n_documents)
-
-    print(f"[get_context_sources] n_documents convertido a int: {type(n_documents)}")
-    print(f"[get_context_sources] word_list type: {type(word_list)}")
-    print(f"[get_context_sources] word_list: {word_list}")
+    # print(f"[context_sources_service] n_documents type: {type(n_documents)}")
+    # print(f"[context_sources_service] word_list type: {type(word_list)}")
+    # print(f"[context_sources_service] word_list: {word_list}")
 
     try:
-        db = SessionLocal()
-
         # Obtener colecciones disponibles
-        collection_names = get_list_collections()
-        print(f"[get_context_sources] Colecciones disponibles: {collection_names}")
-
+        collection_names = get_collection_names()
+        print(f"Valor de colecction names que se obtiene: {collection_names}")
         if not collection_names:
             return {"error": "No se encontraron colecciones en la base de datos."}
 
         # Generar embedding para la consulta
         query_embedding = get_embeddings(query)
+        # print(f"[QUERY_PDF] Embedding generado para la consulta: {query_embedding}")
 
-        # Extraer números de la consulta
-        numbers_from_query = extract_numbers(query)
-        print(
-            f"[get_context_sources] Números extraídos de la consulta: {numbers_from_query}"
-        )
-
-        numbers_search_results = []
-        word_list_search_results = []
-        embedding_search_results = []
-
+        # Buscar documentos relevantes en todas las colecciones
         all_documents_global = []
         sources_global = []
         considerations_global = []
+        metadata_filters = {}
+        full_text_filters = {"$or": []}
 
-        for collection_name in collection_names:
-            # Si hay números en la consulta, buscar en la base de datos
-            if len(numbers_from_query) > 0:
-                numbers_search_results = search_from_numbers(numbers_from_query)
-                # print(
-                #     f"[get_context_sources] Resultados de búsqueda por números: {json.dumps(numbers_search_results, indent=4, default=str)}"
-                # )
+        numbers_from_query = extract_numbers(query)
 
-            if len(word_list) > 0:
-                word_list_search_results = search_word_list(word_list, collection_name)
-                # print(
-                #     f"[get_context_sources] Resultados de búsqueda por word_list: {json.dumps(word_list_search_results, indent=4, default=str)}"
-                # )
+        # print(f"[CONTEX-SOURCES-SERVICE] Word_list to Contain: {word_list}")
+        # print("[CONTEX-SOURCES-SERVICE] Resolución y año extraídos: ", year, resolution)
 
-            if query_embedding:
-                embedding_search_results = search_embedding_query(
-                    query_embedding, collection_name
-                )
-                # print(
-                #     f"[get_context_sources] Resultados de búsqueda por embedding: {json.dumps(embedding_search_results, indent=4, default=str)}"
-                # )
+        if len(numbers_from_query) > 0:
+            # Crear dinámicamente los elementos dentro de $or
+            or_filters = []
+            for number in numbers_from_query:
+                or_filters.append({"collection_name": {"$eq": str(number)}})
+                or_filters.append({"number_resolution": {"$eq": str(number)}})
 
-            # Aquí procesamos los resultados obtenidos y los almacenamos en las listas globales
-            # Procesar los resultados de la búsqueda por números
-            for result in numbers_search_results:
-                # Procesa el documento y almacénalo en las listas globales
-                document = result.get("document_name", "")
-                resolve_page = result.get("resolve_page", "")
-                similarity = result.get("similarity", 0)
-                all_documents_global.append(
-                    {
-                        "document_name": document,
-                        "content": result.get("text", ""),
-                        "resolve_page": resolve_page,
-                        "similarity": similarity,
-                    }
-                )
-                sources_global.append(
-                    {
-                        "file_path": result.get("file_path", ""),
-                        "document_name": document,
-                        "resolve_page": resolve_page,
-                    }
-                )
-                considerations_global.append(
-                    {
-                        "document_name": document,
-                        "considerations": result.get("considerations", []),
-                        "copia": result.get("copia", ""),
-                    }
-                )
+            metadata_filters = {"$or": or_filters}
 
-            # Procesar los resultados de la búsqueda por word_list
-            for result in word_list_search_results:
-                document = result.get("document_name", "")
-                resolve_page = result.get("resolve_page", "")
-                similarity = result.get("similarity", 0)
-                all_documents_global.append(
-                    {
-                        "document_name": document,
-                        "content": result.get("text", ""),
-                        "resolve_page": resolve_page,
-                        "similarity": similarity,
-                    }
-                )
-                sources_global.append(
-                    {
-                        "file_path": result.get("file_path", ""),
-                        "document_name": document,
-                        "resolve_page": resolve_page,
-                    }
-                )
-                considerations_global.append(
-                    {
-                        "document_name": document,
-                        "considerations": result.get("considerations", []),
-                        "copia": result.get("copia", ""),
-                    }
-                )
+        print(
+            "[CONTEXT-SOURCES-SERVICE] Filtros de metadata: ",
+            json.dumps(metadata_filters, indent=4, default=str),
+        )
+        print("[CONTEXT-SOURCES-SERVICE] Lend word_list: ", len(word_list))
 
-            # Procesar los resultados de la búsqueda por embeddings
-            for result in embedding_search_results:
-                document = result.get("document_name", "")
-                resolve_page = result.get("resolve_page", "")
-                similarity = result.get("similarity", 0)
-                all_documents_global.append(
-                    {
-                        "document_name": document,
-                        "content": result.get("text", ""),
-                        "resolve_page": resolve_page,
-                        "similarity": similarity,
-                    }
-                )
-                sources_global.append(
-                    {
-                        "file_path": result.get("file_path", ""),
-                        "document_name": document,
-                        "resolve_page": resolve_page,
-                    }
-                )
-                considerations_global.append(
-                    {
-                        "document_name": document,
-                        "considerations": result.get("considerations", []),
-                        "copia": result.get("copia", ""),
-                    }
-                )
+        if len(word_list) != 0:
+            for word in word_list:  # Iteramos sobre cada palabra en la lista original
+                variations = generate_variations(
+                    word
+                )  # Generamos las variaciones de la palabra
+                for variation in variations:  # Iteramos sobre cada variación generada
+                    full_text_filters["$or"].append(
+                        {"$contains": variation}
+                    )  # Agregamos cada variación como un nuevo registro
+        else:
+            full_text_filters = {}
 
-        # 1. Generar índices para mantener la relación entre documentos y sources
-        indices = list(range(len(all_documents_global)))
-
-        # 2. Ordenar índices por distancia (menor primero)
-        indices.sort(key=lambda i: all_documents_global[i]["similarity"], reverse=True)
-
-        # 3. Seleccionar los primeros 'n_documents' índices
-        top_indices = indices[:n_documents]
-
-        # 4. Filtrar documentos y sources usando los índices ordenados
-        all_documents_global = [all_documents_global[i] for i in top_indices]
-        selected_sources = [sources_global[i] for i in top_indices]
-
-        # 5. Generar el contexto
-        context = ", ".join(
-            [
-                f"{doc['document_name']} [{doc['content']}]"
-                for doc in all_documents_global
-            ]
+        print(
+            "[CONTEXT-SOURCES-SERVICE] filtros de where_documents: ",
+            json.dumps(full_text_filters, indent=4, default=str),
         )
 
-        # Depuración
-        # print(f"[get_context_sources] Contexto combinado: {context}")
-        # print(
-        #     f"[get_context_sources] Sources combinado: {json.dumps(sources_global, indent=4, default=str)}"
-        # )
-        # print(
-        #     f"[get_context_sources] Considerations combinado: {json.dumps(considerations_global, indent=4, default=str)}"
-        # )
+        for collection_name in collection_names:
+            print(f"[contex_sources_service] Buscando en colección: {collection_name}")
+            collection = return_collection(collection_name)
+            print(f"[contex_sources_service] Tipo de collection: {type(collection)}")
 
-        save_requested_document(selected_sources)
+            search_results = collection.query(  # type: ignore
+                query_embeddings=[query_embedding],
+                n_results=n_documents,
+                where=metadata_filters,  # type: ignore
+                where_document=full_text_filters,  # type: ignore
+                include=["documents", "metadatas", "distances"],  # type: ignore
+            )
+            # print(f"\nRESULTS\n\n------[contex_sources_service] Resultado de search_results {json.dumps(search_results, indent=4, default=str)}")
 
-        return {
-            "context": context,
-            "sources": selected_sources,
-            "considerations": considerations_global,
-        }
+            # Verificar si 'documents' contiene resultados y procesarlos
+            if (
+                "documents" in search_results
+                and search_results["documents"]
+                and search_results["metadatas"]
+                and search_results["distances"]
+            ):
+                # Obtener los documentos de 'documents'
+                documents = search_results["documents"][
+                    0
+                ]  # Acceder al primer conjunto de documentos
+                # print("\n\n\n CONSEGUIR DOCUMENTS: \n", documents)
+                metadatas = search_results["metadatas"][
+                    0
+                ]  # Obtener los metadatos correspondientes
+                # print("\n\n\n CONSEGUIR METADATAS: \n", metadatas)
+                distances = search_results["distances"][
+                    0
+                ]  # Obtener las distancias correspondientes
+
+                # print(f"----\nDocumentos\n\n[contex_sources_service] Documentos encontrados en {collection_name}: {documents}")
+
+                # Almacenar los textos de los documentos encontrados y las fuentes
+                for i, doc in enumerate(documents):
+                    if doc:  # Verificar que el documento no sea None o vacío
+                        # Obtener metadatos correspondientes
+                        document_metadata = metadatas[i]
+                        considerations = document_metadata.get("considerations", "")
+                        copia = document_metadata.get("copia", "")
+                        resolve_page = document_metadata.get("resolve_page", "")
+                        file_path = document_metadata.get("file_path", "")
+                        document_name = document_metadata.get("document_name", "")
+
+                        # Agregar documento y metadatos a las listas correspondientes
+                        all_documents_global.append(
+                            {
+                                "document_name": document_name,
+                                "content": doc,
+                                "resolve_page": resolve_page,
+                                "distance": distances[i],
+                            }
+                        )
+
+                        # Agregar metadatos a la lista de fuentes
+                        sources_global.append(
+                            {
+                                "file_path": file_path,
+                                "document_name": document_name,
+                                "resolve_page": resolve_page,
+                            }
+                        )
+
+                        considerations_global.append(
+                            {
+                                "document_name": document_name,
+                                "considerations": considerations,
+                                "copia": copia,
+                            }
+                        )
+
+                        # Imprimir para depuración
+                        print(
+                            f"[cntx-src-srv] Documento: {document_name}, Página: {resolve_page}, Distancia: {distances[i]}"
+                        )
+
+                    else:
+                        print(
+                            f"[contex_sources_service] El documento está vacío o es None"
+                        )
+            else:
+                print(
+                    f"\n\n-----[contex_sources_service] No se encontraron documentos en la colección {collection_name}"
+                )
+
+            n_documents = max(n_documents - 1, 1)
+
+        # Una vez que se han procesado todas las colecciones, puedes ordenar y generar el contexto global
+        if all_documents_global:
+            all_documents_global.sort(key=lambda x: x["distance"])
+            context = ", ".join(
+                [
+                    f"{doc['document_name']} [{doc['content']}]"
+                    for doc in all_documents_global
+                ]
+            )
+            # print("\n\n----------------------CONTEXTO--------------------")
+            # print(f"[contex_sources_service] all_documents combinado: {context}\n\n\n\n")
+            # print("\n\n----------------------SOURCES--------------------")
+            # print(f"[contex_sources_service] sources combinado: {json.dumps(sources_global, indent=4, default=str)}\n\n\n\n")
+            # print("\n\n----------------------CONSIDERATIONS--------------------")
+            # print(f"[contex_sources_service] consideratios combinado: {json.dumps(considerations_global, indent=4, default=str)}\n\n\n\n")
+
+            save_requested_document(sources_global)
+
+            return {
+                "context": context,
+                "sources": sources_global,
+                "considerations": considerations_global,
+            }
+        else:
+            return {"context": "", "sources": [], "considerations": []}
 
     except Exception as e:
-        print(f"[get_context_sources] Error: {e}")
-        return {"error": str(e)}
-
-    finally:
-        db.close()
+        print(f"[contex_sources_service] Error al procesar la consulta: {str(e)}")
+        return {"error": f"Error al procesar la consulta: {str(e)}"}
