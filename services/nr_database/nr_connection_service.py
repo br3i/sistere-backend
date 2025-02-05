@@ -9,7 +9,6 @@ load_dotenv(dotenv_path)
 
 # Ahora puedes acceder a las variables de entorno
 NO_RELATIONAL_DATABASE_PATH = os.getenv("NO_RELATIONAL_DATABASE_PATH", "./db_nr")
-
 # Inicializa el cliente de Chroma, lo podemos hacer aquí para que se reutilice en todo el proyecto
 client = chromadb.PersistentClient(
     path=NO_RELATIONAL_DATABASE_PATH,  # Ruta persistente de la base de datos

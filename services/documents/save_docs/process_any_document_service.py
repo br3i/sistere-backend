@@ -7,10 +7,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from models.database import get_db
 from services.embeddings.save_embedding_service import save_embeddings
-
-# from services.embeddings.get_create_collection import get_collection, create_collection
-
-# from services.helpers.return_collection import return_collection
+from services.helpers.return_collection import return_collection
 from services.documents.treat_docs.info_documents_service import get_info_document
 from dotenv import load_dotenv
 
@@ -208,12 +205,12 @@ def process_pdf(file, public_url, collection_name: str, id_document: int):
                 # )
 
                 # Llamar a la función que guarda las embeddings
+                collection = return_collection(collection_name)
+                # print(f"\n\n----------------------------------------------------------")
+                # print(f"\n\n[process_resolve_and_articles] Collection: {collection}")
+
                 save_embeddings(
-                    [chunk.page_content],
-                    collection_name,
-                    document_metadata,
-                    id_document,
-                    db,
+                    [chunk.page_content], collection, document_metadata, id_document, db
                 )
 
             except Exception as e:
