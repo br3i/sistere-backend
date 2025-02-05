@@ -1,16 +1,17 @@
 import uuid
-from sqlalchemy import Column, Integer, ForeignKey, Float, String
-from sqlalchemy.dialects.postgresql import ARRAY, JSON, UUID
+from sqlalchemy import Column, Integer, ForeignKey, String
+from sqlalchemy.dialects.postgresql import JSON, UUID
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import relationship
 from .database import Base
 
 
 class Embedding(Base):
-    __tablename__ = "embeddings"  # Nombre de la tabla en la base de datos
+    __tablename__ = "embeddings"
 
-    id = Column(UUID, primary_key=True, default=uuid.uuid4)  # Usamos UUID como ID
-    embedding = Column(ARRAY(Float), nullable=False)  # El vector de embeddings
-    embed_metadata = Column(JSON, nullable=False)  # La metadata asociada
+    id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    embedding = Column(Vector(1024), nullable=False)
+    embed_metadata = Column(JSON, nullable=False)
     collection_name = Column(String, nullable=False)
     document_id = Column(Integer, ForeignKey("documents.id"))
 

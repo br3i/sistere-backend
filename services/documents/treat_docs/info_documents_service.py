@@ -3,6 +3,17 @@ import re
 import unicodedata
 
 
+def clean_text(text):
+    """
+    Limpia el texto eliminando caracteres invisibles o especiales no deseados.
+    """
+    text = re.sub(
+        r"[\x00-\x1F\x7F-\x9F\u200B\u200C\u200D\u200E\u200F\uFEFF]", " ", text
+    )  # Elimina caracteres de control y espacios invisibles
+    text = re.sub(r"\s{2,}", " ", text).strip()  # Reduce múltiples espacios a uno solo
+    return text
+
+
 def extract_text_from_pages(reader):
     """
     Extrae el texto de todas las páginas de un archivo PDF desde el inicio hasta encontrar el patrón "RESUELVE:".
@@ -200,8 +211,9 @@ def process_paragraphs(paragraphs):
 
     # print("Procesando párrafos...")
     for paragraph in paragraphs:
+        cleaned_paragraph = clean_text(paragraph)
         for pattern in search_patterns:
-            matches = re.findall(pattern, paragraph, flags=re.IGNORECASE)
+            matches = re.findall(pattern, cleaned_paragraph, flags=re.IGNORECASE)
             if matches:
                 # Si hay coincidencias, añadirlas a la lista
                 for match in matches:
@@ -329,6 +341,12 @@ def get_resolve_to_embed(text):
 
     # Restaurar la "ñ" (reemplazar el carácter no imprimible por "ñ")
     text = text.replace("\001", "ñ")
+
+    # Aplicar limpieza de caracteres invisibles y especiales
+    text = re.sub(
+        r"[\x00-\x1F\x7F-\x9F\u200B\u200C\u200D\u200E\u200F\uFEFF]", " ", text
+    )
+    text = re.sub(r"\s{2,}", " ", text).strip()
 
     # Lista de patrones y sus reemplazos
     replacements = [

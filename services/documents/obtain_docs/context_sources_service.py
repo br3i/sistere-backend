@@ -4,6 +4,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from models.database import SessionLocal
 from models.embedding import Embedding
 from services.documents.save_docs.save_requested_document import save_requested_document
+from sqlalchemy.sql import text
 from services.documents.treat_word_list.generate_variations import generate_variations
 from services.helpers.extract_numbers import extract_numbers
 from services.embeddings.get_embedding_service import get_embeddings
@@ -28,157 +29,51 @@ def search_from_numbers(numbers_from_query):
     )
     db = SessionLocal()
 
-    results = []
-    for number in numbers_from_query:
-        print(f"[search_from_numbers] Procesando número: {number}")
-
-        # Buscar documentos en la base de datos
-        documents = (
-            db.query(Embedding)
-            .filter(
-                (Embedding.embed_metadata["collection_name"].astext == str(number))
-                | (Embedding.embed_metadata["number_resolution"].astext == str(number))
-            )
-            .all()
-        )
-
-        print(
-            f"[search_from_numbers] Documentos encontrados para '{number}': {len(documents)}"
-        )
-
-        # Extraer metadatos de los documentos encontrados
-        for doc in documents:
-            metadata = doc.embed_metadata
-            print(f"[search_from_numbers] Documento encontrado: {metadata}")
-
-            # Calcular similitud entre el número de la consulta y el número de resolución
-            similarity = calculate_similarity(number, metadata.get("number_resolution"))
-            print(f"[search_from_numbers] Similitud calculada: {similarity}")
-
-            results.append(
-                {
-                    "document_name": metadata.get("document_name"),
-                    "file_path": metadata.get("file_path"),
-                    "resolve_page": metadata.get("resolve_page"),
-                    "collection_name": metadata.get("collection_name"),
-                    "considerations": metadata.get("considerations"),
-                    "number_resolution": metadata.get("number_resolution"),
-                    "uuid": metadata.get("uuid"),
-                    "chunk_index": metadata.get("chunk_index"),
-                    "text": metadata.get("text"),
-                    "copia": metadata.get("copia"),
-                    "similarity": similarity,
-                }
-            )
-
-    # print(f"[search_from_numbers] Resultados finales: {results}")
-    return results
-
-
-def search_word_list(word_list, collection_name):
-    print(
-        f"\n\n--------------[search_word_list] Buscando documentos con palabras clave: {word_list}"
-    )
-
-    db = SessionLocal()
-
-    all_variations = []
-
-    for word in word_list:
-        variations = generate_variations(word)  # Genera variaciones de la palabra
-        print(f"[search_word_list] Variaciones generadas para '{word}': {variations}")
-        all_variations.extend(variations)  # Agregamos las variaciones a la lista total
-
-    print(
-        f"[search_word_list] Lista completa de variaciones para la búsqueda: {all_variations}"
-    )
-
-    results = []
-
-    for variation in all_variations:
-        print(f"[search_word_list] Buscando la variación: {variation}")
-
-        # Buscar documentos en la base de datos donde "text" contenga la variación
-        documents = (
-            db.query(Embedding)
-            .filter(
-                Embedding.embed_metadata["text"].astext.ilike(f"%{variation}%"),
-                Embedding.embed_metadata["collection_name"].astext == collection_name,
-            )
-            .all()
-        )
-
-        print(
-            f"[search_word_list] Documentos encontrados para '{variation}': {len(documents)}"
-        )
-
-        for doc in documents:
-            metadata = doc.embed_metadata
-            print(
-                f"[search_word_list] Documento encontrado con '{variation}': {metadata}"
-            )
-
-            # Calcular similitud con Jaccard
-            document_words = set(
-                metadata.get("text", "").split()
-            )  # Palabras del texto del documento
-            variation_set = set(variation.split())  # Palabras de la variación
-
-            similarity = calculate_jaccard_similarity(variation_set, document_words)
-            print(f"[search_word_list] Similitud de Jaccard calculada: {similarity}")
-
-            results.append(
-                {
-                    "document_name": metadata.get("document_name"),
-                    "file_path": metadata.get("file_path"),
-                    "resolve_page": metadata.get("resolve_page"),
-                    "collection_name": metadata.get("collection_name"),
-                    "considerations": metadata.get("considerations"),
-                    "number_resolution": metadata.get("number_resolution"),
-                    "uuid": metadata.get("uuid"),
-                    "chunk_index": metadata.get("chunk_index"),
-                    "text": metadata.get("text"),
-                    "copia": metadata.get("copia"),
-                    "similarity": similarity,
-                }
-            )
-
-    print(f"[search_word_list] Resultados finales: {results}")
-    return results
-
-
-def search_embedding_query(query_embedding, collection_name):
-    print(
-        f"\n\n--------------[search_embedding_query] Buscando documentos por embeddings"
-    )
-
-    db = SessionLocal()
-
-    # Consultar los documentos dentro de la colección
+    # Usar IN para agrupar los números en una sola consulta
+    numbers_from_query_tuple = tuple(numbers_from_query)
     documents = (
         db.query(Embedding)
-        .filter(Embedding.embed_metadata["collection_name"].astext == collection_name)
+        .filter(
+            (
+                Embedding.embed_metadata["collection_name"].astext.in_(
+                    numbers_from_query_tuple
+                )
+            )
+            | (
+                Embedding.embed_metadata["number_resolution"].astext.in_(
+                    numbers_from_query_tuple
+                )
+            )
+        )
         .all()
     )
 
+    results = []
     print(
-        f"[search_embedding_query] Documentos en la colección '{collection_name}': {len(documents)}"
+        f"[search_from_numbers] Documentos encontrados para los números: {len(documents)}"
     )
 
-    results = []
-
+    # Extraer metadatos de los documentos encontrados
     for doc in documents:
-        stored_embedding = np.array(doc.embedding).reshape(
-            1, -1
-        )  # Asegurar forma correcta
-        query_embedding = np.array(query_embedding).reshape(1, -1)
-
-        similarity = cosine_similarity(query_embedding, stored_embedding)[0][0]
-
         metadata = doc.embed_metadata
+        print(f"[search_from_numbers] Documento encontrado: {metadata}")
+
+        # Calcular similitud entre el número de la consulta y el número de resolución
+        similarity = calculate_similarity(
+            next(
+                (
+                    num
+                    for num in numbers_from_query
+                    if str(num) == str(metadata.get("number_resolution"))
+                ),
+                None,
+            ),
+            metadata.get("number_resolution"),
+        )
+        print(f"[search_from_numbers] Similitud calculada: {similarity}")
+
         results.append(
             {
-                "similarity": similarity,
                 "document_name": metadata.get("document_name"),
                 "file_path": metadata.get("file_path"),
                 "resolve_page": metadata.get("resolve_page"),
@@ -189,14 +84,114 @@ def search_embedding_query(query_embedding, collection_name):
                 "chunk_index": metadata.get("chunk_index"),
                 "text": metadata.get("text"),
                 "copia": metadata.get("copia"),
+                "similarity": similarity,
             }
         )
 
-    # Ordenar resultados por similitud de mayor a menor
-    results.sort(key=lambda x: x["similarity"], reverse=True)
-
-    print(f"[search_embedding_query] Resultados finales: {results}")
     return results
+
+
+def search_word_list(word_list, collection_name):
+    print(
+        f"\n\n--------------[search_word_list] Buscando documentos con palabras clave: {word_list}"
+    )
+    db = SessionLocal()
+
+    all_variations = []
+    for word in word_list:
+        variations = generate_variations(word)  # Genera variaciones de la palabra
+        print(f"[search_word_list] Variaciones generadas para '{word}': {variations}")
+        all_variations.extend(variations)  # Agregamos las variaciones a la lista total
+
+    print(
+        f"[search_word_list] Lista completa de variaciones para la búsqueda: {all_variations}"
+    )
+
+    # Usar IN para agrupar las variaciones en una sola consulta
+    documents = (
+        db.query(Embedding)
+        .filter(
+            Embedding.embed_metadata["text"].astext.ilike(
+                f"%{'%'})%".join(all_variations)
+            ),
+            Embedding.embed_metadata["collection_name"].astext == collection_name,
+        )
+        .all()
+    )
+
+    results = []
+    print(
+        f"[search_word_list] Documentos encontrados para las variaciones: {len(documents)}"
+    )
+
+    # Extraer metadatos de los documentos encontrados
+    for doc in documents:
+        metadata = doc.embed_metadata
+        print(f"[search_word_list] Documento encontrado con variación: {metadata}")
+
+        # Calcular similitud con Jaccard
+        document_words = set(
+            metadata.get("text", "").split()
+        )  # Palabras del texto del documento
+        variation_set = set(" ".join(all_variations))  # Palabras de la variación
+
+        similarity = calculate_jaccard_similarity(variation_set, document_words)
+        print(f"[search_word_list] Similitud de Jaccard calculada: {similarity}")
+
+        results.append(
+            {
+                "document_name": metadata.get("document_name"),
+                "file_path": metadata.get("file_path"),
+                "resolve_page": metadata.get("resolve_page"),
+                "collection_name": metadata.get("collection_name"),
+                "considerations": metadata.get("considerations"),
+                "number_resolution": metadata.get("number_resolution"),
+                "uuid": metadata.get("uuid"),
+                "chunk_index": metadata.get("chunk_index"),
+                "text": metadata.get("text"),
+                "copia": metadata.get("copia"),
+                "similarity": similarity,
+            }
+        )
+
+    return results
+
+
+def search_embedding_query(query_embedding, collection_name, limit=100):
+    db = SessionLocal()
+    try:
+        query = """
+            SELECT *, 
+                   embedding <=> CAST(:embedding AS VECTOR) AS distance
+            FROM embeddings
+            WHERE embed_metadata->>'collection_name' = :col_name
+            ORDER BY distance
+            LIMIT :limit
+        """
+
+        results = db.execute(
+            text(query),
+            {"embedding": query_embedding, "col_name": collection_name, "limit": limit},
+        ).fetchall()
+
+        return [
+            {
+                "document_name": row.embed_metadata["document_name"],
+                "file_path": row.embed_metadata["file_path"],
+                "resolve_page": row.embed_metadata["resolve_page"],
+                "collection_name": row.embed_metadata["collection_name"],
+                "considerations": row.embed_metadata["considerations"],
+                "number_resolution": row.embed_metadata["number_resolution"],
+                "uuid": row.embed_metadata["uuid"],
+                "chunk_index": row.embed_metadata["chunk_index"],
+                "text": row.embed_metadata["text"],
+                "copia": row.embed_metadata["copia"],
+                "similarity": 1 - row.distance,
+            }
+            for row in results
+        ]
+    finally:
+        db.close()
 
 
 def get_context_sources(query: str, word_list, n_documents):

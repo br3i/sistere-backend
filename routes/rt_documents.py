@@ -1,6 +1,7 @@
 # routes/routes_documents.py
 import os
 import time
+import traceback
 from sqlalchemy.orm import Session
 from models.database import get_db
 from models.document import Document
@@ -46,7 +47,7 @@ async def list_collections():
     if collections:
         # Devolvemos la lista de colecciones
         return {
-            "collections": [collection[0] for collection in collections]
+            "collections": [collection for collection in collections]
         }  # Aplanamos la lista de tuplas
     else:
         return {"message": "No collections found."}
@@ -218,6 +219,8 @@ async def document_post(
         elapsed_time = time.time() - start_time
         final_cpu, final_memory = get_system_usage()
         print(f"Error en document_post: {e}")
+        print("Traceback completo:")
+        traceback.print_exc()
         return JSONResponse(
             {
                 "status": "Error",
