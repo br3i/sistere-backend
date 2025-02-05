@@ -1,6 +1,6 @@
 import os
 import pytz
-from sqlalchemy import Column, Integer, String, DateTime, UUID
+from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.dialects.postgresql import ARRAY
 from .database import Base
 from sqlalchemy.orm import relationship
@@ -29,11 +29,7 @@ class Document(Base):
     updated_at = Column(
         DateTime, default=lambda: datetime.now(pytz.timezone(TIME_ZONE))
     )
-    embeddings_uuids = Column(ARRAY(UUID), default=list)
-
-    embeddings = relationship(
-        "Embedding", back_populates="document", cascade="all, delete-orphan"
-    )
+    embeddings_uuids = Column(ARRAY(String), default=list)
 
     requests = relationship(
         "RequestedDocument",
