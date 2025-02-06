@@ -223,7 +223,9 @@ async def context_sources(query_model: QueryModel):
     n_documents = query_model.n_documents
     word_list = query_model.word_list
 
+    search_documents_start = time.time()
     response = get_context_sources(query, word_list, n_documents)
+    search_documents_time = time.time() - search_documents_start
     context_to_send = response.get("context", "No hay contexto disponible")
     sources_to_send = response.get("sources", "No hay fuentes disponibles")
     considerations_to_send = response.get(
@@ -254,6 +256,7 @@ async def context_sources(query_model: QueryModel):
         "context": context_to_send,
         "sources": sources_to_send,
         "considerations": considerations_to_send,
+        "search_documents_time": search_documents_time,
     }
 
     session_data[user_session_uuid]["interactions"].append(interaction)
@@ -319,6 +322,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     if isinstance(raw_considerations, list)
                     else []
                 )
+                search_documents_time = float(
+                    session_data[user_session_uuid]["interactions"][-1][
+                        "search_documents_time"
+                    ]
+                )
                 if not isinstance(considerations, list):
                     considerations = []
 
@@ -332,6 +340,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     context,
                     sources,
                     considerations,
+                    search_documents_time,
                     use_considerations,
                     initial_cpu,
                     initial_memory,

@@ -13,6 +13,7 @@ class MetricExtraResponse(Base):
     time_evaluating_prompt = Column(Float, nullable=False)
     number_tokens_response = Column(Integer, nullable=False)
     time_generating_response = Column(Float, nullable=False)
+    time_searching_documents = Column(Float, nullable=False)
 
     metric = relationship("Metric", back_populates="response_metrics")
 

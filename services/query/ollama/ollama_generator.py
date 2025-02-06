@@ -24,6 +24,7 @@ async def ollama_generator(
     context: str,
     sources: str,
     considerations: List[dict],
+    search_documents_time: float,
     use_considerations: bool,
     initial_cpu,
     initial_memory,
@@ -88,6 +89,7 @@ async def ollama_generator(
                 "eval_duration": chunk.get("eval_duration"),
                 "cpu_usage": {"initial": initial_cpu, "final": final_cpu},
                 "memory_usage": {"initial": initial_memory, "final": final_memory},
+                "search_documents_time": search_documents_time,
             }
 
             save_metrics_response(db, metrics_data)

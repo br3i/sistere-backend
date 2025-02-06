@@ -32,6 +32,7 @@ def save_metrics_response(db: Session, metrics_data):
         time_evaluating_prompt=metrics_data.get("prompt_eval_duration", 0),
         number_tokens_response=metrics_data.get("eval_count", 0),
         time_generating_response=metrics_data.get("eval_duration", 0),
+        time_searching_documents=metrics_data.get("search_documents_time", 0),
     )
 
     # Guardar la asociación en la base de datos
