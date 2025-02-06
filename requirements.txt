@@ -18,7 +18,7 @@ python-dotenv==1.0.1 # type: ignore
 bcrypt==4.2.0 # type: ignore
 python-docx==1.1.2 # type: ignore
 python-multipart==0.0.20 # type: ignore
-psycopg2==2.9.10 # type: ignore
+psycopg2-binary==2.9.10 # type: ignore
 PyMuPDF==1.25.2 # type: ignore
 pytz==2024.2 # type: ignore
 scikit-learn==1.6.1 # type: ignore

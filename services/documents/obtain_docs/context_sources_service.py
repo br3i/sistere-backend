@@ -164,8 +164,6 @@ def get_context_sources(query: str, word_list, n_documents):
                     f"\n\n-----[contex_sources_service] No se encontraron documentos en la colección {collection_name}"
                 )
 
-            n_documents = max(n_documents - 1, 1)
-
         # Una vez que se han procesado todas las colecciones, puedes ordenar y generar el contexto global
         if all_documents_global:
             all_documents_global.sort(key=lambda x: x["distance"])
@@ -175,18 +173,21 @@ def get_context_sources(query: str, word_list, n_documents):
                     for doc in all_documents_global
                 ]
             )
-            # print("\n\n----------------------CONTEXTO--------------------")
-            # print(f"[contex_sources_service] all_documents combinado: {context}\n\n\n\n")
+            print("\n\n----------------------CONTEXTO--------------------")
+            print(
+                f"[contex_sources_service] all_documents combinado: {context}\n\n\n\n"
+                f"[contex_sources_service] context_len: {len(context)}\n\n\n\n"
+            )
             # print("\n\n----------------------SOURCES--------------------")
             # print(f"[contex_sources_service] sources combinado: {json.dumps(sources_global, indent=4, default=str)}\n\n\n\n")
             # print("\n\n----------------------CONSIDERATIONS--------------------")
             # print(f"[contex_sources_service] consideratios combinado: {json.dumps(considerations_global, indent=4, default=str)}\n\n\n\n")
 
-            save_requested_document(sources_global)
+            save_requested_document(sources_global[:n_documents])
 
             return {
                 "context": context,
-                "sources": sources_global,
+                "sources": sources_global[:n_documents],
                 "considerations": considerations_global,
             }
         else:
