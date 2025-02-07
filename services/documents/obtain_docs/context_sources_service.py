@@ -40,6 +40,27 @@ def get_context_sources(query: str, word_list, n_documents):
         full_text_filters = {"$or": []}
 
         numbers_from_query = extract_numbers(query)
+        current_year = time.localtime().tm_year  # Año actual
+
+        # Determinar el año de la consulta si está presente en los números extraídos
+        query_year = next(
+            (num for num in numbers_from_query if 1900 <= int(num) <= current_year),
+            None,
+        )
+
+        # Priorizar la búsqueda en la colección correspondiente al año extraído
+        if query_year and str(query_year) in collection_names:
+            ordered_collections = [str(query_year)] + [
+                c for c in collection_names if c != str(query_year)
+            ]
+        else:
+            ordered_collections = (
+                collection_names  # Si no hay año, buscar en todas normalmente
+            )
+
+        print(
+            f"[CONTEXT-SOURCES-SERVICE] Orden de búsqueda en colecciones: {ordered_collections}"
+        )
 
         # print(f"[CONTEX-SOURCES-SERVICE] Word_list to Contain: {word_list}")
         # print("[CONTEX-SOURCES-SERVICE] Resolución y año extraídos: ", year, resolution)
@@ -76,7 +97,7 @@ def get_context_sources(query: str, word_list, n_documents):
             json.dumps(full_text_filters, indent=4, default=str),
         )
 
-        for collection_name in collection_names:
+        for collection_name in ordered_collections:
             print(f"[contex_sources_service] Buscando en colección: {collection_name}")
             collection = return_collection(collection_name)
             print(f"[contex_sources_service] Tipo de collection: {type(collection)}")
