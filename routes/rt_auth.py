@@ -20,7 +20,7 @@ TIME_ZONE = os.getenv("TIME_ZONE", "America/Guayaquil")
 tz = pytz.timezone(TIME_ZONE)
 
 # Configuración de JWT
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "una_clave_secreta_muy_segura")
+SECRET_KEY = os.getenv("SECRET_KEY", "una_clave_secreta_muy_segura")
 SESSION_KEY = os.getenv("SESSION_KEY", "clave_de_sesion_secreta")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120"))
