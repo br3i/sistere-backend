@@ -3,6 +3,7 @@ import pytz
 import bcrypt
 from fastapi import APIRouter, HTTPException, Depends, Body
 from fastapi.responses import JSONResponse
+from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
 from models.user import User
@@ -38,6 +39,31 @@ class UpdateUserRequest(BaseModel):
     first_name: str
     last_name: str
     roles: list
+
+    class Config:
+        from_attributes = True
+
+
+# Pydantic model para la respuesta del usuario
+class UpdateProfileRequest(BaseModel):
+    email: Optional[str] = None
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    password: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ProfileResponse(BaseModel):
+    id: int
+    email: str
+    username: str
+    first_name: str
+    last_name: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -256,6 +282,73 @@ async def update_user(user_id: int, data: UpdateUserRequest):
         last_name=user.last_name,  # type: ignore
         password=user.password,  # type: ignore
         roles=user.roles,
+        created_at=user.created_at,  # type: ignore
+        updated_at=user.updated_at,  # type: ignore
+    )
+
+
+@router.put("/edit_profile/{id}")
+async def edit_profile(id: int, data: UpdateProfileRequest):
+    db: Session = SessionLocal()
+    print(f"[edit_profile] Datos recibidos: {data}")
+
+    # Buscar usuario
+    user = db.query(User).filter(User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    # Crear un diccionario con los valores recibidos, ignorando "edit_profile"
+    update_data = {
+        "email": data.email if data.email and data.email != "edit_profile" else None,
+        "username": (
+            data.username if data.username and data.username != "edit_profile" else None
+        ),
+        "first_name": (
+            data.first_name
+            if data.first_name and data.first_name != "edit_profile"
+            else None
+        ),
+        "last_name": (
+            data.last_name
+            if data.last_name and data.last_name != "edit_profile"
+            else None
+        ),
+        "password": (
+            bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()
+            if data.password and data.password != "edit_profile"
+            else None
+        ),
+    }
+
+    # Eliminar claves con valor `None`
+    update_data = {
+        key: value for key, value in update_data.items() if value is not None
+    }
+
+    # Si no hay nada que actualizar, retornamos error
+    if not update_data:
+        raise HTTPException(
+            status_code=400, detail="No hay datos válidos para actualizar"
+        )
+
+    # Aplicar cambios
+    for key, value in update_data.items():
+        setattr(user, key, value)
+
+    user.updated_at = datetime.now(tz)  # type: ignore
+
+    # Guardar cambios en la BD
+    db.commit()
+    db.refresh(user)
+
+    print(f"[edit_profile] Usuario actualizado: {user}")
+
+    return ProfileResponse(
+        id=user.id,  # type: ignore
+        email=user.email,  # type: ignore
+        username=user.username,  # type: ignore
+        first_name=user.first_name,  # type: ignore
+        last_name=user.last_name,  # type: ignore
         created_at=user.created_at,  # type: ignore
         updated_at=user.updated_at,  # type: ignore
     )
