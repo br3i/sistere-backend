@@ -425,7 +425,7 @@ async def change_password(user_id: int, data: ChangePasswordRequest):
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     # Actualizar la contraseña (en producción deberías cifrarla)
-    user.password = bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()  # type: ignore
+    user.password = data.password  # type: ignore
     db.commit()
     db.close()
 
