@@ -238,6 +238,9 @@ async def get_active_users_metrics(limit: int = 5):
     active_users = (
         db.query(
             User.id,  # Solo obtenemos el id del usuario
+            User.username,
+            User.first_name,
+            User.last_name,
             User.created_at,  # Y la fecha de creación
         )
         .order_by(
@@ -250,9 +253,12 @@ async def get_active_users_metrics(limit: int = 5):
     return [
         {
             "user_id": user_id,
+            "username": username,
+            "firs_name": first_name,
+            "last_name": last_name,
             "created_at": created_at,
         }
-        for user_id, created_at in active_users
+        for user_id, username, first_name, last_name, created_at in active_users
     ]
 
 

@@ -1,4 +1,3 @@
-import os
 import json
 import time
 import numpy as np
@@ -37,7 +36,8 @@ def get_context_sources(query: str, word_list, n_documents):
         sources_global = []
         considerations_global = []
         metadata_filters = {}
-        full_text_filters = {"$or": []}
+        full_text_filters = []
+        filter_where_document = {"$or": []}
 
         numbers_from_query = extract_numbers(query)
 
@@ -61,20 +61,22 @@ def get_context_sources(query: str, word_list, n_documents):
 
         if len(word_list) != 0:
             for word in word_list:  # Iteramos sobre cada palabra en la lista original
-                variations = generate_variations(
-                    word
-                )  # Generamos las variaciones de la palabra
-                for variation in variations:  # Iteramos sobre cada variación generada
-                    full_text_filters["$or"].append(
-                        {"$contains": variation}
-                    )  # Agregamos cada variación como un nuevo registro
-        else:
-            full_text_filters = {}
+                variations = generate_variations(word)  # Generamos variaciones
 
-        print(
-            "[CONTEXT-SOURCES-SERVICE] filtros de where_documents: ",
-            json.dumps(full_text_filters, indent=4, default=str),
-        )
+                # Asegurarnos de que hay al menos dos variaciones
+                if len(variations) > 1:
+                    # Tomar la segunda variación para filter_where_document
+                    second_variation = variations[1]
+                    filter_where_document["$or"].append({"$contains": second_variation})
+                for variation in variations:
+                    full_text_filters.append(variation)
+
+            print(
+                "[CONTEXT-SOURCES-SERVICE] filtros de where_documents: ",
+                json.dumps(filter_where_document, indent=4, default=str),
+            )
+        else:
+            filter_where_document = {}
 
         for collection_name in collection_names:
             print(f"[contex_sources_service] Buscando en colección: {collection_name}")
@@ -85,7 +87,7 @@ def get_context_sources(query: str, word_list, n_documents):
                 query_embeddings=[query_embedding],
                 n_results=n_documents,
                 where=metadata_filters,  # type: ignore
-                where_document=full_text_filters,  # type: ignore
+                where_document=filter_where_document,  # type: ignore
                 include=["documents", "metadatas", "distances"],  # type: ignore
             )
             # print(f"\nRESULTS\n\n------[contex_sources_service] Resultado de search_results {json.dumps(search_results, indent=4, default=str)}")

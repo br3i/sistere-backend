@@ -1,4 +1,6 @@
 import itertools
+import unicodedata
+import re
 
 # Mapping of vowels with their accented versions
 accents = {"a": "á", "e": "é", "i": "í", "o": "ó", "u": "ú"}
@@ -52,27 +54,66 @@ def apply_accent(word, word_type):
     return "".join(word_list)
 
 
-def generate_variations(word):
-    """Generates valid word variations with accents and substitutions, ensuring the original word is always first."""
-    original_word = word.lower()
-    word_type = classify_word(original_word)
+def get_textual_option(text):
+    """
+    Procesa el texto convirtiéndolo en minúsculas, eliminando tildes y
+    caracteres especiales, excepto puntos y comas.
+    """
+    text = text.lower()
+    text = text.replace("ñ", "\001")
+    text = "".join(
+        c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
+    )
+    text = text.replace("\001", "ñ")
 
-    accented_word = apply_accent(original_word, word_type)
+    text = re.sub(
+        r"[\x00-\x1F\x7F-\x9F\u200B\u200C\u200D\u200E\u200F\uFEFF]", " ", text
+    )
+    text = re.sub(r"\s{2,}", " ", text).strip()
+
+    replacements = [
+        (r"[^a-z0-9áéíóúüñ%.,:=()/\- ]", ""),
+        (r"\.\s*-\s*", "."),
+        (r"-{2,}", "-"),
+        (r"\.{2,}", "."),
+        (r"\(\.\)", ""),
+        (r"/{2,}", "/"),
+        (r"\s{2,}", " "),
+        (r";", ","),
+    ]
+
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text)
+
+    return text
+
+
+def generate_variations(word):
+    """Generates valid word variations ensuring:
+    - The original word is first.
+    - The processed version is always second.
+    - Other variations follow.
+    """
+    original_word = word  # Keep original as first
+    processed_word = get_textual_option(word)  # Processed version as second
+
+    word_type = classify_word(processed_word)
+    accented_word = apply_accent(processed_word, word_type)
 
     options = [substitutions.get(letter, [letter]) for letter in accented_word]
 
     variations_set = {"".join(p) for p in itertools.product(*options)}
 
-    # Remove the original word if it appears in the variations set
-    variations_set.discard(original_word)
+    # Remove the processed word if it appears in variations
+    variations_set.discard(processed_word)
 
     # Generate versions with capitalization
     capitalized_variations = {v.capitalize() for v in variations_set}
     uppercase_variations = {v.upper() for v in variations_set}
 
-    # Create the final list ensuring the original is first
+    # Create the final list ensuring correct order
     sorted_variations = (
-        [original_word]
+        [original_word, processed_word]
         + sorted(variations_set)
         + sorted(capitalized_variations)
         + sorted(uppercase_variations)
