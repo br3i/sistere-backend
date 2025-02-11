@@ -1,6 +1,6 @@
 # routes/routes_documents.py
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, desc, Float, cast
 from models.database import get_db
 from models.document import Document
 from models.metric import Metric
@@ -41,22 +41,97 @@ async def get_top_documents(limit: int = 5, db: Session = Depends(get_db)):
 
 @router.get("/documents/time_distribution")
 async def get_time_distribution(limit: int = 5, db: Session = Depends(get_db)):
-    # Consulta los tiempos de guardado y procesamiento de documentos con límite
+    # Consulta con join adicional a Metric y ordenamiento por total_time descendente
     time_distribution = (
         db.query(
-            Document.name,  # Cambiado de 'id' a 'name'
-            MetricExtraDocument.save_time,
-            MetricExtraDocument.process_time,
+            Document.name,  # Nombre del documento
+            MetricExtraDocument.save_time,  # Tiempo de guardado
+            MetricExtraDocument.cpu_save,  # Uso de CPU durante el guardado
+            MetricExtraDocument.memory_save,  # Uso de memoria durante el guardado
+            MetricExtraDocument.process_time,  # Tiempo de procesamiento
+            MetricExtraDocument.cpu_process,  # Uso de CPU durante el procesamiento
+            MetricExtraDocument.memory_process,  # Uso de memoria durante el procesamiento
+            Metric.total_time,  # Tiempo total (guardado + procesamiento)
+            Metric.memory_initial,  # Memoria RAM inicial
+            Metric.memory_final,  # Memoria RAM final
+            Metric.cpu_initial,  # Uso de CPU inicial
+            Metric.cpu_final,  # Uso de CPU final
         )
         .join(MetricExtraDocument, Document.id == MetricExtraDocument.document_id)
-        .limit(limit)  # Aquí se limita la cantidad de registros
+        .join(Metric, MetricExtraDocument.metric_id == Metric.id)  # Join con Metric
+        .order_by(desc(Metric.total_time))  # Ordenar por tiempo total descendente
+        .limit(limit)  # Limitar resultados
         .all()
     )
 
+    # Formatear la respuesta
     return [
         {
-            "name": doc.name,  # Cambiado de 'id' a 'name'
+            "name": doc.name,
             "save_time": doc.save_time,
+            "cpu_save": doc.cpu_save,
+            "memory_save": doc.memory_save,
+            "process_time": doc.process_time,
+            "cpu_process": doc.cpu_process,
+            "memory_process": doc.memory_process,
+            "total_time": doc.total_time,
+            "memory_initial": doc.memory_initial,
+            "memory_final": doc.memory_final,
+            "cpu_initial": doc.cpu_initial,
+            "cpu_final": doc.cpu_final,
+        }
+        for doc in time_distribution
+    ]
+
+
+@router.get("/documents/time_distribution/save")
+async def get_time_distribution_save(limit: int = 5, db: Session = Depends(get_db)):
+    db.expire_all()
+
+    # Consulta con join adicional a Metric y ordenamiento por total_time descendente
+    time_distribution = (
+        db.query(
+            Document.name,  # Nombre del documento
+            MetricExtraDocument.save_time,  # Tiempo de guardado
+        )
+        .join(MetricExtraDocument, Document.id == MetricExtraDocument.document_id)
+        .order_by(
+            desc(cast(MetricExtraDocument.save_time, Float))
+        )  # Convertir a número explícitamente
+        .limit(limit)  # Limitar resultados
+        .all()
+    )
+
+    # Formatear la respuesta
+    return [
+        {
+            "name": doc.name,
+            "save_time": doc.save_time,
+        }
+        for doc in time_distribution
+    ]
+
+
+@router.get("/documents/time_distribution/process")
+async def get_time_distribution_process(limit: int = 5, db: Session = Depends(get_db)):
+    # Consulta con join adicional a Metric y ordenamiento por total_time descendente
+    time_distribution = (
+        db.query(
+            Document.name,  # Nombre del documento
+            MetricExtraDocument.process_time,  # Tiempo de procesamiento
+        )
+        .join(MetricExtraDocument, Document.id == MetricExtraDocument.document_id)
+        .order_by(
+            desc(MetricExtraDocument.process_time)
+        )  # Ordenar por tiempo total descendente
+        .limit(limit)  # Limitar resultados
+        .all()
+    )
+
+    # Formatear la respuesta
+    return [
+        {
+            "name": doc.name,
             "process_time": doc.process_time,
         }
         for doc in time_distribution
@@ -85,6 +160,106 @@ async def get_processing_metrics(limit: int = 5, db: Session = Depends(get_db)):
             "cpu_save": doc.cpu_save,
             "memory_save": doc.memory_save,
             "cpu_process": doc.cpu_process,
+            "memory_process": doc.memory_process,
+        }
+        for doc in processing_metrics
+    ]
+
+
+@router.get("/documents/processing_metrics/cpu_save")
+async def get_processing_metrics_cpu_save(
+    limit: int = 5, db: Session = Depends(get_db)
+):
+    # Consulta las métricas de procesamiento de documentos con límite
+    processing_metrics = (
+        db.query(
+            Document.name,  # Cambiado de 'id' a 'name'
+            MetricExtraDocument.cpu_save,
+        )
+        .join(MetricExtraDocument, Document.id == MetricExtraDocument.document_id)
+        .order_by(desc(MetricExtraDocument.cpu_save))
+        .limit(limit)  # Aquí se limita la cantidad de registros
+        .all()
+    )
+
+    return [
+        {
+            "name": doc.name,  # Cambiado de 'id' a 'name'
+            "cpu_save": doc.cpu_save,
+        }
+        for doc in processing_metrics
+    ]
+
+
+@router.get("/documents/processing_metrics/memory_save")
+async def get_processing_metrics_memomy_save(
+    limit: int = 5, db: Session = Depends(get_db)
+):
+    # Consulta las métricas de procesamiento de documentos con límite
+    processing_metrics = (
+        db.query(
+            Document.name,  # Cambiado de 'id' a 'name'
+            MetricExtraDocument.memory_save,
+        )
+        .join(MetricExtraDocument, Document.id == MetricExtraDocument.document_id)
+        .order_by(desc(MetricExtraDocument.memory_save))
+        .limit(limit)  # Aquí se limita la cantidad de registros
+        .all()
+    )
+
+    return [
+        {
+            "name": doc.name,  # Cambiado de 'id' a 'name'
+            "memory_save": doc.memory_save,
+        }
+        for doc in processing_metrics
+    ]
+
+
+@router.get("/documents/processing_metrics/cpu_process")
+async def get_processing_metrics_cpu_process(
+    limit: int = 5, db: Session = Depends(get_db)
+):
+    # Consulta las métricas de procesamiento de documentos con límite
+    processing_metrics = (
+        db.query(
+            Document.name,  # Cambiado de 'id' a 'name'
+            MetricExtraDocument.cpu_process,
+        )
+        .join(MetricExtraDocument, Document.id == MetricExtraDocument.document_id)
+        .order_by(desc(MetricExtraDocument.cpu_process))
+        .limit(limit)  # Aquí se limita la cantidad de registros
+        .all()
+    )
+
+    return [
+        {
+            "name": doc.name,  # Cambiado de 'id' a 'name'
+            "cpu_process": doc.cpu_process,
+        }
+        for doc in processing_metrics
+    ]
+
+
+@router.get("/documents/processing_metrics/memory_process")
+async def get_processing_metrics_memory_process(
+    limit: int = 5, db: Session = Depends(get_db)
+):
+    # Consulta las métricas de procesamiento de documentos con límite
+    processing_metrics = (
+        db.query(
+            Document.name,  # Cambiado de 'id' a 'name'
+            MetricExtraDocument.memory_process,
+        )
+        .join(MetricExtraDocument, Document.id == MetricExtraDocument.document_id)
+        .order_by(desc(MetricExtraDocument.memory_process))
+        .limit(limit)  # Aquí se limita la cantidad de registros
+        .all()
+    )
+
+    return [
+        {
+            "name": doc.name,  # Cambiado de 'id' a 'name'
             "memory_process": doc.memory_process,
         }
         for doc in processing_metrics

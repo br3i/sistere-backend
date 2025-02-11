@@ -46,14 +46,6 @@ class Notification(Base):
         DateTime, default=lambda: datetime.now(pytz.timezone(TIME_ZONE))
     )
 
-    # Relación opcional con usuario (si necesitas notificaciones individuales)
-    user_id = Column(
-        Integer, ForeignKey("users.id"), nullable=True
-    )  # Puede ser nulo si es para roles
-    user = relationship(
-        "User", back_populates="notifications"
-    )  # Usa el nombre de la clase como cadena para evitar ciclos
-
     def __repr__(self):
         return (
             f"<Notification(title={self.title}, roles={self.roles}, kind={self.kind})>"

@@ -49,9 +49,6 @@ def create_collection(collection_name):
                 "hnsw:construction_ef": 200,
                 "hnsw:M": 100,
                 "hnsw:search_ef": 300,
-                # "hnsw:num_threads": 4,
-                # "hnsw:resize_factor": 1.2,
-                # "hnsw:batch_size": 100,
                 "hnsw:sync_threshold": 3000,
             },
         )

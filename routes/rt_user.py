@@ -1,13 +1,14 @@
 import os
 import pytz
 import bcrypt
+from sqlalchemy import asc, desc, func
 from fastapi import APIRouter, HTTPException, Depends, Body
 from fastapi.responses import JSONResponse
 from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
-from models.user import User
-from models.user import ALLOWED_ROLES
+from models.user import User, ALLOWED_ROLES
+from models.code import Code
 from models.database import SessionLocal
 from sqlalchemy.orm import Session
 
@@ -201,6 +202,60 @@ async def get_roles():
         db.close()
 
 
+@router.get("/roles/distribution")
+async def get_role_distribution(limit: int = 5):
+    db: Session = SessionLocal()
+
+    # Consultamos la cantidad de usuarios por cada rol, desagregando los roles del array jsonb
+    role_distribution = (
+        db.query(
+            func.jsonb_array_elements_text(User.roles).label(
+                "role"
+            ),  # Convertimos jsonb a texto y desagregamos
+            func.count(User.id).label("count"),  # Contamos los usuarios por cada rol
+        )
+        .group_by("role")  # Agrupamos por cada rol individual
+        .order_by(desc("count"))  # Ordenamos por la cantidad de usuarios
+        .limit(limit)  # Limitamos la cantidad de resultados
+        .all()
+    )
+
+    return [
+        {
+            "role": role,
+            "count": count,
+        }
+        for role, count in role_distribution
+    ]
+
+
+# Endpoint para obtener la cantidad de usuarios activos
+@router.get("/roles/active_users")
+async def get_active_users_metrics(limit: int = 5):
+    db: Session = SessionLocal()
+
+    # Consultamos los usuarios activos, es decir, aquellos que están registrados y tienen un campo `created_at`
+    active_users = (
+        db.query(
+            User.id,  # Solo obtenemos el id del usuario
+            User.created_at,  # Y la fecha de creación
+        )
+        .order_by(
+            User.created_at.asc()
+        )  # Ordenamos por fecha de creación de más reciente a más antiguo
+        .limit(limit)  # Limite de resultados
+        .all()
+    )
+
+    return [
+        {
+            "user_id": user_id,
+            "created_at": created_at,
+        }
+        for user_id, created_at in active_users
+    ]
+
+
 @router.post("/create-user", response_model=UserResponse)
 async def create_user(data: CreateUserRequest):
     db: Session = SessionLocal()
@@ -364,7 +419,7 @@ async def change_password(user_id: int, data: ChangePasswordRequest):
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     # Actualizar la contraseña (en producción deberías cifrarla)
-    user.password = data.password  # type: ignore
+    user.password = bcrypt.hashpw(data.password.encode(), bcrypt.gensalt()).decode()  # type: ignore
     db.commit()
     db.close()
 

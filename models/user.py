@@ -31,7 +31,7 @@ class User(Base):
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     password = Column(String, nullable=False)
-    roles = Column(JSONB, default=[])
+    roles = Column(JSONB, default=["viewer"])
     created_at = Column(
         DateTime, default=lambda: datetime.now(pytz.timezone(TIME_ZONE))
     )
@@ -42,11 +42,6 @@ class User(Base):
     # Relación con el modelo Code
     codes = relationship("Code", back_populates="user", cascade="all, delete-orphan")
 
-    # Relación con el modelo Notification
-    notifications = relationship(
-        "Notification", back_populates="user", cascade="all, delete-orphan"
-    )
-
     # Método para validar los roles antes de asignarlos
     def set_roles(self, roles):
         if all(role in ALLOWED_ROLES for role in roles):
@@ -56,7 +51,6 @@ class User(Base):
                 f"Roles inválidos. Los roles permitidos son: {', '.join(ALLOWED_ROLES)}"
             )
 
-    # Definir relaciones si es necesario (no se necesitan para este caso)
     # documents = relationship("Document", back_populates="owner")
 
     def __repr__(self):

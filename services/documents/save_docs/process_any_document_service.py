@@ -164,7 +164,7 @@ def process_pdf(file, public_url, collection_name: str, id_document: int):
             "resolve_page": resolve_page,  # Asignamos la página de la resolución
             "collection_name": collection_name,
             "considerations": considerations,  # Asignamos las consideraciones a la metadata
-            "copia": copia,
+            "copia": copia,  #!! Cambiar a copy
         }
 
         if number_resolution is not None:
